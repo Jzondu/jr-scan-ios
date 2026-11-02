@@ -169,6 +169,7 @@ struct ScanDetailView: View {
                         Text("\(Int(store.progress * 100))% • \(store.processingStage)")
                         Text("Keep JR Scan in the foreground. Leaving the app stops processing; saved inputs allow a new reconstruction attempt.")
                         Button("Cancel reconstruction", role: .destructive) { stopConfirmation = true }
+                            .disabled(store.isCancelling)
                     }
                 } else {
                     Section("Reconstruction") {

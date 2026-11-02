@@ -30,6 +30,7 @@ final class ScanStore: ObservableObject {
     @Published var progress: Double = 0
     @Published var processingStage = ""
     @Published var isProcessing = false
+    @Published var isCancelling = false
     @Published var isExporting = false
     @Published var isStarting = false
     private var reconstruction: PhotogrammetrySession?
@@ -190,6 +191,7 @@ final class ScanStore: ObservableObject {
     }
 
     private func closeCapture() {
+        captureTask?.cancel()
         showCapture = false
         capture = nil
         captureTask = nil
@@ -203,6 +205,7 @@ final class ScanStore: ObservableObject {
         isProcessing = true
         activeID = id
         stopReason = nil
+        isCancelling = false
         processingTask = Task {
             do {
                 try checkSpace()
@@ -224,6 +227,7 @@ final class ScanStore: ObservableObject {
                 log(id, "On-device reconstruction started (.reduced)")
                 try session.process(requests: [.modelFile(url: output, detail: .reduced)])
                 var modelRequestCompleted = false
+                var reconstructionWarning: String?
                 for try await event in session.outputs {
                     switch event {
                     case .requestProgress(_, let fraction): progress = min(1, max(0, fraction))
@@ -234,10 +238,12 @@ final class ScanStore: ObservableObject {
                     case .processingComplete:
                         if let stopReason {
                             stage(id, .interrupted, message: stopReason)
+                        } else if isCancelling {
+                            stage(id, .cancelled, message: "Reconstruction cancelled. Inputs retained; restart when ready.")
                         } else {
                             let size = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                             guard modelRequestCompleted, size > 0 else { throw ScanFailure.message("Reconstruction finished without a usable model file.") }
-                            try update(id) { $0.modelName = fileName; $0.stage = .completed; $0.message = nil }
+                            try update(id) { $0.modelName = fileName; $0.stage = .completed; $0.message = reconstructionWarning }
                             log(id, "USDZ saved (\(size) bytes)")
                         }
                         endProcessing()
@@ -250,24 +256,31 @@ final class ScanStore: ObservableObject {
                     case .invalidSample(_, let reason): log(id, "Invalid input sample: \(reason)")
                     case .skippedSample(_): log(id, "Input sample skipped by framework")
                     case .automaticDownsampling: log(id, "Framework downsampled inputs")
-                    case .stitchingIncomplete: log(id, "Warning: framework reports incomplete stitching")
+                    case .stitchingIncomplete:
+                        reconstructionWarning = "The framework reports incomplete stitching. Inspect the model for missing or disconnected parts before using its geometry."
+                        log(id, "Warning: framework reports incomplete stitching")
                     default: break
                     }
                 }
                 throw ScanFailure.message("Reconstruction output stream ended before completion. Inputs retained.")
             } catch {
-                stage(id, stopReason == nil ? .failed : .interrupted, message: stopReason ?? error.localizedDescription)
-                self.error = "Reconstruction: \(stopReason ?? error.localizedDescription). Inputs and previous outputs are retained."
+                if isCancelling, stopReason == nil {
+                    stage(id, .cancelled, message: "Reconstruction cancelled. Inputs and previous outputs retained.")
+                } else {
+                    stage(id, stopReason == nil ? .failed : .interrupted, message: stopReason ?? error.localizedDescription)
+                    self.error = "Reconstruction: \(stopReason ?? error.localizedDescription). Inputs and previous outputs are retained."
+                }
                 endProcessing()
             }
         }
     }
 
-    func cancelReconstruction() { reconstruction?.cancel() }
+    func cancelReconstruction() { isCancelling = true; reconstruction?.cancel() }
 
     private func endProcessing() {
         reconstruction = nil
         isProcessing = false
+        isCancelling = false
         activeID = nil
         processingTask = nil
         UIApplication.shared.isIdleTimerDisabled = false
