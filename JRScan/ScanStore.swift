@@ -22,6 +22,8 @@ struct ScanRecord: Codable, Identifiable {
     var reconstructionMode: String?
     var lastProcessingStage: String?
     var lastErrorDetails: String?
+    var editedModelName: String?
+    var editSummary: String?
 }
 
 @MainActor
@@ -67,6 +69,49 @@ final class ScanStore: ObservableObject {
         guard let name = record(id)?.modelName, let directory = try? folder(id) else { return nil }
         let url = directory.appendingPathComponent("Models").appendingPathComponent(name)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func editedModel(_ id: UUID) -> URL? {
+        guard let name = record(id)?.editedModelName, let directory = try? folder(id) else { return nil }
+        let url = directory.appendingPathComponent("Edits").appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func geometrySource(_ id: UUID) -> URL? { editedModel(id) ?? model(id) }
+
+    func saveEdit(_ id: UUID, result: MeshEditResult) async -> Bool {
+        guard !busy else { return false }
+        isExporting = true
+        defer { isExporting = false }
+        do {
+            try checkSpace()
+            let revision = UUID().uuidString
+            let directory = try folder(id).appendingPathComponent("Edits").appendingPathComponent(revision)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let output = directory.appendingPathComponent("geometry-meters.obj")
+            try await Task.detached(priority: .userInitiated) { try result.mesh.writeOBJ(output) }.value
+            try result.summary.write(to: directory.appendingPathComponent("Edit-note.txt"), atomically: true, encoding: .utf8)
+            // Publish only after validated geometry and its note are durably written.
+            try update(id) {
+                $0.editedModelName = "\(revision)/geometry-meters.obj"
+                $0.editSummary = result.summary
+                $0.exportMessage = nil
+            }
+            log(id, "Saved separate geometry edit: \(result.summary)")
+            return true
+        } catch {
+            log(id, "Geometry edit failed: \(error.localizedDescription)")
+            self.error = "Could not save geometry edit: \(error.localizedDescription). Original and previous saved edit retained."
+            return false
+        }
+    }
+
+    func restoreOriginalGeometry(_ id: UUID) {
+        guard !busy else { return }
+        do {
+            try update(id) { $0.editedModelName = nil; $0.editSummary = nil; $0.exportMessage = nil }
+            log(id, "Restored original geometry for preview/edit/export; edit files retained in backup")
+        } catch { self.error = error.localizedDescription }
     }
 
     func imageCount(_ id: UUID) -> Int {
@@ -267,7 +312,10 @@ final class ScanStore: ObservableObject {
                         } else {
                             let size = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                             guard modelRequestCompleted, size > 0 else { throw ScanFailure.message("Reconstruction finished without a usable model file.") }
-                            try update(id) { $0.modelName = fileName; $0.stage = .completed; $0.message = reconstructionWarning }
+                            try update(id) {
+                                $0.modelName = fileName; $0.stage = .completed; $0.message = reconstructionWarning
+                                $0.editedModelName = nil; $0.editSummary = nil; $0.exportMessage = nil
+                            }
                             log(id, "USDZ saved (\(size) bytes)")
                         }
                         endProcessing()
@@ -325,7 +373,7 @@ final class ScanStore: ObservableObject {
     }
 
     func export(_ id: UUID, units: ExportUnits) async -> [URL]? {
-        guard !busy, let source = model(id) else { return nil }
+        guard !busy, let source = geometrySource(id) else { return nil }
         isExporting = true
         defer { isExporting = false }
         do {
@@ -340,6 +388,7 @@ final class ScanStore: ObservableObject {
             let note = """
             JR Scan — geometry OBJ
             Scan ID: \(id.uuidString)
+            Geometry source: \(editedModel(id) != nil ? "saved crop/cleanup revision" : "original reconstruction")
             Units: \(units.rawValue)
             Coordinates = reconstructed meter coordinates × \(units.multiplier).
             OBJ has no universal unit declaration. Configure your importer for these units.
@@ -348,6 +397,7 @@ final class ScanStore: ObservableObject {
             Normals included; scene transforms baked into vertex positions. No texture export.
             Recovered metric scale is not metrology-grade accuracy. Compare a known measurement.
             Original USDZ and capture inputs remain in this scan's folder.
+            Edit details: \(record(id)?.editSummary ?? "none")
             """
             try note.write(to: directory.appendingPathComponent("Export-\(units.rawValue).txt"), atomically: true, encoding: .utf8)
             try update(id) { $0.exportMessage = "\(summary.triangles) triangles exported in \(units.rawValue)" }
@@ -398,6 +448,7 @@ final class ScanStore: ObservableObject {
             Message: \(item.message ?? "none")
             Error details: \(item.lastErrorDetails ?? "not recorded; retry on this build for full details")
             Export: \(item.exportMessage ?? "not exported")
+            Geometry edit: \(item.editSummary ?? "none")
             No photographs or account credentials are included in this log.
 
             """

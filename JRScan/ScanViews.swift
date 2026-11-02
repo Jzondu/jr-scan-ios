@@ -150,6 +150,7 @@ struct ScanDetailView: View {
     @State private var preview: FileSelection?
     @State private var deleteConfirmation = false
     @State private var stopConfirmation = false
+    @State private var restoreConfirmation = false
 
     var body: some View {
         Form {
@@ -189,12 +190,22 @@ struct ScanDetailView: View {
                 }
                 if let model = store.model(id) {
                     Section("Model and geometry export") {
+                        if let source = store.geometrySource(id) {
+                            NavigationLink("Crop & clean mesh") { MeshEditorView(store: store, scanID: id, source: source) }
+                                .disabled(store.busy)
+                        }
+                        if let edited = store.editedModel(id) {
+                            NavigationLink("Preview edited geometry") { GeometryPreviewView(source: edited) }
+                                .disabled(store.busy)
+                            Text(scan.editSummary ?? "Saved geometry edit").font(.caption)
+                            Button("Restore original geometry…") { restoreConfirmation = true }.disabled(store.busy)
+                        }
                         Button("Preview — rotate and zoom") { preview = FileSelection(urls: [model]) }.disabled(store.busy)
                         Button("Share original USDZ") { share = FileSelection(urls: [model]) }.disabled(store.busy)
                         Picker("OBJ units", selection: $units) {
                             ForEach(ExportUnits.allCases) { unit in Text(unit.rawValue.capitalized).tag(unit) }
                         }
-                        Button("Export geometry OBJ…") {
+                        Button(store.editedModel(id) == nil ? "Export geometry OBJ…" : "Export edited geometry OBJ…") {
                             Task { if let urls = await store.export(id, units: units) { share = FileSelection(urls: urls) } }
                         }.disabled(store.busy)
                         if store.isExporting { ProgressView("Converting geometry…") }
@@ -231,6 +242,9 @@ struct ScanDetailView: View {
         }
         .confirmationDialog("Cancel processing and retain inputs?", isPresented: $stopConfirmation, titleVisibility: .visible) {
             Button("Cancel reconstruction", role: .destructive) { store.cancelReconstruction() }
+        }
+        .confirmationDialog("Restore the original geometry for export? Saved edit files and the original USDZ will be kept.", isPresented: $restoreConfirmation, titleVisibility: .visible) {
+            Button("Restore original") { store.restoreOriginalGeometry(id) }
         }
     }
 }

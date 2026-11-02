@@ -70,6 +70,7 @@ struct GeometryChecks {
         try require(simd_length(converted.minimum - a.minimum) < 0.0001, "USDZ import changed coordinate bounds")
         try checkWindingAndNormals(directory.appendingPathComponent("converted.obj"))
         print("PASS: USDZ -> geometry OBJ import/export")
+        try MeshEditingChecks.run(in: directory)
     }
 
     static func fixture() -> MDLMesh {
