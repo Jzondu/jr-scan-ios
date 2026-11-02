@@ -27,7 +27,7 @@ app=build/DerivedData/Build/Products/Release-iphoneos/JRScan.app
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" == fi.jzondu.jrscan ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print DTPlatformName' "$app/Info.plist")" == iphoneos ]]
 lipo -info "$app/JRScan" | tee build/logs/architecture.txt
-lipo -verify_arch arm64 "$app/JRScan"
+lipo "$app/JRScan" -verify_arch arm64
 mkdir -p build/package/Payload
 # Work only within the build directory; ditto preserves app bundle metadata.
 ditto "$app" build/package/Payload/JRScan.app
