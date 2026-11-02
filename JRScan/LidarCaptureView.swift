@@ -20,6 +20,7 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
     private var started = false
     private var collecting = false
     private var checkpointTask: Task<Void, Never>?
+    private var checkpointFailed = false
 
     init(directory: URL) {
         archive = LidarArchive(directory: directory)
@@ -51,7 +52,7 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
     }
 
     func checkpoint() {
-        guard started, checkpointTask == nil, !finishing else { return }
+        guard started, checkpointTask == nil, !finishing, !checkpointFailed else { return }
         let snapshot = Array(patches.values)
         checkpointTask = Task {
             do {
@@ -60,6 +61,7 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
             } catch {
                 let message = "LiDAR checkpoint could not be saved. Check free storage. \(error.localizedDescription)"
                 errorMessage = message
+                checkpointFailed = true
                 collecting = false
                 paused = true
                 tracking = "Checkpoint failed. Free storage and finish, or close to retain the last saved mesh."
@@ -82,6 +84,8 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
         guard !finishing else { return nil }
         finishing = true
         collecting = false
+        paused = true
+        tracking = "Capture stopped. Saving the current mesh."
         session.pause()
         defer { finishing = false }
         await checkpointTask?.value
@@ -110,6 +114,7 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
         errorMessage = message
         collecting = false
         paused = true
+        tracking = "Capture paused after an error. Finish the retained mesh or close."
         session.pause()
         onIssue?(message)
     }

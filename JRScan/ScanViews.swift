@@ -20,6 +20,9 @@ struct ScanListView: View {
                     Button("New live LiDAR scan", systemImage: "viewfinder") { Task { await store.newLidarCapture() } }
                         .disabled(store.busy || !ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh))
                     Text("Object scan uses photos for detail. Live LiDAR captures a coarse nearby surface mesh directly; crop the surroundings afterward.").font(.footnote)
+                    if !ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+                        Text("Live LiDAR mesh capture is unavailable on this device.").font(.footnote)
+                    }
                     Text("Capture and reconstruction run on this iPhone. Keep the app open during processing. Back up important scans; uninstalling can remove local data.")
                         .font(.footnote)
                 }
@@ -262,7 +265,7 @@ struct ScanDetailView: View {
         .confirmationDialog("Cancel processing and retain inputs?", isPresented: $stopConfirmation, titleVisibility: .visible) {
             Button("Cancel reconstruction", role: .destructive) { store.cancelReconstruction() }
         }
-        .confirmationDialog("Restore the original geometry for export? Saved edit files and the original USDZ will be kept.", isPresented: $restoreConfirmation, titleVisibility: .visible) {
+        .confirmationDialog("Restore the original geometry for export? Saved edit files and the original model will be kept.", isPresented: $restoreConfirmation, titleVisibility: .visible) {
             Button("Restore original") { store.restoreOriginalGeometry(id) }
         }
     }

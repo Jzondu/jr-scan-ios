@@ -137,6 +137,7 @@ final class ScanStore: ObservableObject {
         } catch {
             let message = "LiDAR mesh could not be saved: \(error.localizedDescription). Raw checkpoints retained; free space and retry."
             lidar.errorMessage = message
+            lidar.tracking = "Capture stopped. Free storage and retry Finish, or close to retain checkpoints."
             stage(id, .failed, message: message)
         }
     }
