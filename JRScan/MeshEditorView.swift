@@ -87,7 +87,7 @@ struct MeshEditorView: View {
                         } else {
                             Text("No changes saved. Preview the current settings before saving.").font(.footnote)
                         }
-                        Text("The original USDZ is preserved. Saved edits are geometry only; OBJ export uses the saved edit until you restore the original.")
+                        Text("The original model is preserved. Saved edits are geometry only; OBJ export uses the saved edit until you restore the original.")
                             .font(.footnote)
                     }
                 }.disabled(editor.working || store.isExporting)

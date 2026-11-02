@@ -5,7 +5,7 @@ import Darwin
 
 @main
 struct GeometryChecks {
-    static func main() throws {
+    static func main() async throws {
         setbuf(stdout, nil)
         let inner = NSError(domain: "Test.Underlying", code: 19, userInfo: [NSLocalizedDescriptionKey: "Input failed", "PhotoPayload": Data([1,2,3])])
         let failure = NSError(domain: "CoreOC.PhotogrammetrySession.Error", code: 6,
@@ -71,6 +71,7 @@ struct GeometryChecks {
         try checkWindingAndNormals(directory.appendingPathComponent("converted.obj"))
         print("PASS: USDZ -> geometry OBJ import/export")
         try MeshEditingChecks.run(in: directory)
+        try await LidarMeshChecks.run(in: directory)
     }
 
     static func fixture() -> MDLMesh {

@@ -4,6 +4,7 @@ import SwiftUI
 import RealityKit
 import AVFoundation
 import UIKit
+import ARKit
 
 struct ScanRecord: Codable, Identifiable {
     enum Stage: String, Codable {
@@ -24,6 +25,7 @@ struct ScanRecord: Codable, Identifiable {
     var lastErrorDetails: String?
     var editedModelName: String?
     var editSummary: String?
+    var captureKind: String? // nil = existing photo/Object Capture scan.
 }
 
 @MainActor
@@ -39,13 +41,15 @@ final class ScanStore: ObservableObject {
     @Published var isCancelling = false
     @Published var isExporting = false
     @Published var isStarting = false
+    @Published var lidar: LidarCapture?
+    @Published var showLidar = false
     private var reconstruction: PhotogrammetrySession?
     private var processingTask: Task<Void, Never>?
     private var stopReason: String?
     private var captureTask: Task<Void, Never>?
     private(set) var root: URL?
 
-    var busy: Bool { isStarting || showCapture || isProcessing || isExporting }
+    var busy: Bool { isStarting || showCapture || showLidar || isProcessing || isExporting }
 
     init() {
         do {
@@ -78,6 +82,118 @@ final class ScanStore: ObservableObject {
     }
 
     func geometrySource(_ id: UUID) -> URL? { editedModel(id) ?? model(id) }
+
+    func isLidar(_ id: UUID) -> Bool { record(id)?.captureKind == "lidar" }
+    func hasLidarCheckpoint(_ id: UUID) -> Bool {
+        guard let directory = try? folder(id) else { return false }
+        return FileManager.default.fileExists(atPath: directory.appendingPathComponent("RawLiDAR/index.json").path)
+    }
+
+    func newLidarCapture() async {
+        guard !busy else { return }
+        isStarting = true
+        defer { isStarting = false }
+        guard ARWorldTrackingConfiguration.isSupported, ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) else {
+            error = "Live LiDAR scene-mesh capture is unsupported on this device."; return
+        }
+        if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .video)
+        }
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
+            error = "Camera access is required for LiDAR tracking. Enable Camera in Settings → JR Scan."; return
+        }
+        let id = UUID()
+        do {
+            try checkSpace()
+            let directory = try folder(id)
+            for name in ["RawLiDAR","Models","Exports"] {
+                try FileManager.default.createDirectory(at: directory.appendingPathComponent(name), withIntermediateDirectories: true)
+            }
+            var item = ScanRecord(id: id, name: "LiDAR \(Date().formatted(date: .abbreviated, time: .shortened))",
+                                  created: Date(), updated: Date(), stage: .capturing)
+            item.captureKind = "lidar"
+            try write(item)
+            scans.insert(item, at: 0)
+            let controller = LidarCapture(directory: directory.appendingPathComponent("RawLiDAR"))
+            controller.onIssue = { [weak self] message in
+                self?.stage(id, .interrupted, message: message)
+            }
+            activeID = id
+            lidar = controller
+            showLidar = true
+            UIApplication.shared.isIdleTimerDisabled = true
+            log(id, "ARKit LiDAR mesh capture started; local patch checkpoints every 2 seconds")
+        } catch { self.error = "Could not start LiDAR: \(error.localizedDescription)" }
+    }
+
+    func finishLidarCapture() async {
+        guard let lidar, let id = activeID, !isExporting else { return }
+        isExporting = true
+        defer { isExporting = false }
+        guard let mesh = await lidar.finish() else { return }
+        do {
+            try await commitLidarMesh(id, mesh: mesh)
+            closeLidar()
+        } catch {
+            let message = "LiDAR mesh could not be saved: \(error.localizedDescription). Raw checkpoints retained; free space and retry."
+            lidar.errorMessage = message
+            stage(id, .failed, message: message)
+        }
+    }
+
+    func cancelLidarCapture() async {
+        guard let lidar, let id = activeID, !isExporting else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let failure = await lidar.stopAndSave()
+        stage(id, failure == nil ? .cancelled : .interrupted,
+              message: failure ?? "LiDAR capture closed. Recover the saved mesh from this scan; no tracking-session resume is promised.")
+        closeLidar()
+        if let failure { error = failure }
+    }
+
+    private func closeLidar() {
+        lidar?.session.pause()
+        showLidar = false
+        lidar = nil
+        activeID = nil
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    func recoverLidarMesh(_ id: UUID) async {
+        guard !busy, isLidar(id) else { return }
+        isExporting = true
+        defer { isExporting = false }
+        do {
+            try checkSpace()
+            let archive = LidarArchive(directory: try folder(id).appendingPathComponent("RawLiDAR"))
+            let patches = try await archive.load()
+            let mesh = try await Task.detached(priority: .userInitiated) { try LidarMeshAssembly.combine(patches) }.value
+            try await commitLidarMesh(id, mesh: mesh)
+        } catch {
+            stage(id, .failed, message: "LiDAR recovery failed: \(error.localizedDescription). Saved files retained.")
+            self.error = "LiDAR recovery: \(error.localizedDescription)"
+        }
+    }
+
+    private func commitLidarMesh(_ id: UUID, mesh: EditableMesh) async throws {
+        try checkSpace()
+        let name = "lidar-\(UUID().uuidString)-meters.obj"
+        let output = try folder(id).appendingPathComponent("Models").appendingPathComponent(name)
+        let count = try await Task.detached(priority: .userInitiated) {
+            var options = MeshEditOptions()
+            options.fragments = .keepAll
+            let clean = try MeshEditing.apply(mesh, options: options)
+            try clean.mesh.writeOBJ(output)
+            return clean.mesh.triangleCount
+        }.value
+        try update(id) {
+            $0.modelName = name; $0.stage = .completed; $0.captureFinished = true
+            $0.editedModelName = nil; $0.editSummary = nil; $0.exportMessage = nil
+            $0.message = "Live LiDAR geometry: \(count) triangles. Coarse untextured surface estimate; crop surroundings before export. Not metrology-grade accuracy."
+        }
+        log(id, "LiDAR mesh saved: \(count) triangles in meters; anchor transforms applied, raw checkpoints retained")
+    }
 
     func saveEdit(_ id: UUID, result: MeshEditResult) async -> Bool {
         guard !busy else { return false }
@@ -131,7 +247,9 @@ final class ScanStore: ObservableObject {
                 guard item.id.uuidString == directory.lastPathComponent else { throw ScanFailure.message("Scan identity mismatch.") }
                 if item.stage == .capturing || item.stage == .reconstructing {
                     item.stage = .interrupted
-                    item.message = "The previous session ended unexpectedly. Saved inputs are retained. Restart reconstruction from inputs; mid-session resume is not promised."
+                    item.message = item.captureKind == "lidar"
+                        ? "LiDAR capture ended unexpectedly. Recover the saved mesh patches below. Tracking-session resume is not promised."
+                        : "The previous session ended unexpectedly. Saved inputs are retained. Restart reconstruction from inputs; mid-session resume is not promised."
                     try write(item)
                 }
                 loaded.append(item)
@@ -250,6 +368,7 @@ final class ScanStore: ObservableObject {
 
     func reconstruct(_ id: UUID, mode: ReconstructionMode = .guided) {
         guard !busy else { return }
+        guard !isLidar(id) else { error = "This is a LiDAR scan. Use Recover saved LiDAR mesh instead of photo reconstruction."; return }
         guard PhotogrammetrySession.isSupported else { error = "On-device reconstruction is unsupported."; return }
         isProcessing = true
         activeID = id
@@ -370,6 +489,10 @@ final class ScanStore: ObservableObject {
             stage(id, .interrupted, message: stopReason)
             reconstruction?.cancel()
         }
+        if phase == .background, let lidar, let id = activeID {
+            lidar.pause(reason: "JR Scan left the foreground.")
+            stage(id, .interrupted, message: "LiDAR paused when the app left the foreground. Finish the saved mesh or close; checkpoints are retained.")
+        }
     }
 
     func export(_ id: UUID, units: ExportUnits) async -> [URL]? {
@@ -396,7 +519,7 @@ final class ScanStore: ObservableObject {
             Bounds minimum: \(summary.minimum); maximum: \(summary.maximum)
             Normals included; scene transforms baked into vertex positions. No texture export.
             Recovered metric scale is not metrology-grade accuracy. Compare a known measurement.
-            Original USDZ and capture inputs remain in this scan's folder.
+            Original model and capture inputs remain in this scan's folder.
             Edit details: \(record(id)?.editSummary ?? "none")
             """
             try note.write(to: directory.appendingPathComponent("Export-\(units.rawValue).txt"), atomically: true, encoding: .utf8)
@@ -439,6 +562,8 @@ final class ScanStore: ObservableObject {
             Object Capture supported: \(ObjectCaptureSession.isSupported)
             Reconstruction supported: \(PhotogrammetrySession.isSupported)
             Scan: \(id.uuidString)
+            Capture kind: \(item.captureKind ?? "photo/Object Capture")
+            LiDAR scene mesh supported: \(ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh))
             Stage: \(item.stage.rawValue)
             Reconstruction mode: \(item.reconstructionMode ?? "guided (older build)")
             Last processing stage: \(item.lastProcessingStage ?? "not recorded by this build")

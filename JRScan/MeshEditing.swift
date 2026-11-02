@@ -238,7 +238,7 @@ enum MeshEditing {
         Removed: \(outside) fully outside faces, \(degenerate) degenerate faces, \(duplicates) duplicate faces, \(areas.count-kept.count) disconnected pieces.
         Crop minimum (meters): \(crop.minimum); maximum: \(crop.maximum).
         Loose pieces: \(options.fragments.title). Normals recalculated; source winding retained.
-        Near-identical vertices welded within \(tolerance) meters. No smoothing, hole filling or caps; cut edges may remain open. Geometry only; original USDZ retained.
+        Near-identical vertices welded within \(tolerance) meters. No smoothing, hole filling or caps; cut edges may remain open. Geometry only; original model retained.
         """
         return MeshEditResult(mesh: result, summary: summary)
     }

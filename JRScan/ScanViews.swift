@@ -5,6 +5,7 @@ import RealityKit
 import QuickLook
 import UIKit
 import AVFoundation
+import ARKit
 
 struct ScanListView: View {
     @StateObject private var store = ScanStore()
@@ -16,6 +17,9 @@ struct ScanListView: View {
                 Section {
                     Button("New object scan", systemImage: "camera") { Task { await store.newCapture() } }
                         .disabled(store.busy || !ObjectCaptureSession.isSupported || !PhotogrammetrySession.isSupported)
+                    Button("New live LiDAR scan", systemImage: "viewfinder") { Task { await store.newLidarCapture() } }
+                        .disabled(store.busy || !ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh))
+                    Text("Object scan uses photos for detail. Live LiDAR captures a coarse nearby surface mesh directly; crop the surroundings afterward.").font(.footnote)
                     Text("Capture and reconstruction run on this iPhone. Keep the app open during processing. Back up important scans; uninstalling can remove local data.")
                         .font(.footnote)
                 }
@@ -28,7 +32,7 @@ struct ScanListView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(scan.name)
-                            Text("\(scan.stage.rawValue.capitalized) • \(scan.created.formatted(date: .abbreviated, time: .shortened))")
+                            Text("\(scan.captureKind == "lidar" ? "LiDAR" : "Photo") • \(scan.stage.rawValue.capitalized) • \(scan.created.formatted(date: .abbreviated, time: .shortened))")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -41,6 +45,9 @@ struct ScanListView: View {
             .navigationTitle("JR Scan")
             .fullScreenCover(isPresented: $store.showCapture) {
                 if let session = store.capture { CaptureScreen(store: store, session: session) }
+            }
+            .fullScreenCover(isPresented: $store.showLidar) {
+                if let lidar = store.lidar { LidarCaptureScreen(store: store, capture: lidar) }
             }
             .alert("JR Scan", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
                 Button("OK") { store.error = nil }
@@ -160,11 +167,19 @@ struct ScanDetailView: View {
                     Button("Save name") { store.rename(id, name: name) }.disabled(store.busy)
                     Text(scan.created.formatted(date: .complete, time: .shortened))
                     Text("State: \(scan.stage.rawValue.capitalized)")
-                    Text("Saved input images: \(store.imageCount(id))")
+                    Text("Capture: \(store.isLidar(id) ? "Live LiDAR mesh" : "Photo / Object Capture")")
+                    if !store.isLidar(id) { Text("Saved input images: \(store.imageCount(id))") }
                     if let message = scan.message { Text(message).foregroundStyle(.orange) }
                     Text(id.uuidString).font(.caption).textSelection(.enabled)
                 }
-                if store.isProcessing && store.activeID == id {
+                if store.isLidar(id) {
+                    Section("Saved LiDAR input") {
+                        Button("Recover saved LiDAR mesh") { Task { await store.recoverLidarMesh(id) } }
+                            .disabled(store.busy || !store.hasLidarCheckpoint(id))
+                        Text("Recovers checkpointed mesh patches locally. No photo reconstruction or live tracking-session resume is required.").font(.footnote)
+                        if store.isExporting { ProgressView("Preparing geometry…") }
+                    }
+                } else if store.isProcessing && store.activeID == id {
                     Section("On-device reconstruction") {
                         ProgressView(value: store.progress)
                         Text("\(Int(store.progress * 100))% • \(store.processingStage)")
@@ -200,8 +215,12 @@ struct ScanDetailView: View {
                             Text(scan.editSummary ?? "Saved geometry edit").font(.caption)
                             Button("Restore original geometry…") { restoreConfirmation = true }.disabled(store.busy)
                         }
-                        Button("Preview — rotate and zoom") { preview = FileSelection(urls: [model]) }.disabled(store.busy)
-                        Button("Share original USDZ") { share = FileSelection(urls: [model]) }.disabled(store.busy)
+                        if store.isLidar(id) {
+                            NavigationLink("Preview original LiDAR mesh") { GeometryPreviewView(source: model) }.disabled(store.busy)
+                        } else {
+                            Button("Preview — rotate and zoom") { preview = FileSelection(urls: [model]) }.disabled(store.busy)
+                        }
+                        Button(store.isLidar(id) ? "Share original LiDAR OBJ (meters)" : "Share original USDZ") { share = FileSelection(urls: [model]) }.disabled(store.busy)
                         Picker("OBJ units", selection: $units) {
                             ForEach(ExportUnits.allCases) { unit in Text(unit.rawValue.capitalized).tag(unit) }
                         }
@@ -221,7 +240,7 @@ struct ScanDetailView: View {
                     Button("Share diagnostic text…") {
                         if let log = store.diagnostics(id) { share = FileSelection(urls: [log]) }
                     }.disabled(store.busy)
-                    Text("Backup includes photos, checkpoints, models and exports. Diagnostic text contains stages and errors, without photos or account credentials.")
+                    Text("Backup includes captured inputs, checkpoints, models and exports. Diagnostic text contains stages and errors, without photos or account credentials.")
                         .font(.footnote)
                 }
                 Section {
