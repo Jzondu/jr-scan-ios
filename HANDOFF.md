@@ -1,28 +1,31 @@
 # JR Scan handoff — 2026-11-02
 
-## Current state
+## Goal and constraints
 
-- Workspace: C:/Users/joona/Documents/ChatGPT/IOS 3Dscanner
-- Public repository: https://github.com/Jzondu/jr-scan-ios, branch main.
-- Brief: JR-Scan-Project-Brief.md. Milestones 0–1 source implemented. Scanning must wait for user-confirmed installability.
-- Stable bundle ID fi.jzondu.jrscan; minimum iOS 18.0. Never change identity for updates.
-- Build 3 SUCCEEDED: https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930
-- Built source commit 15a3ef248d1e30eb7c2b5eb5a16cb21ac99baf27, version 0.1.0 (3).
-- Xcode 16.4 (16F6), SDK 18.5, XcodeGen 2.44.1; runner macos15 20261028.0489.1.
-- Artifact JRScan-unsigned-3: https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930/artifacts/13124857814
-- Extracted local IPA: build/downloads/run-3/JRScan.ipa (ignored, preserved locally).
-- IPA SHA-256 e988d09bbb16777d38394dc894c882ff47a29300b99af21b1688f86118ffebaf independently matched downloaded file. CI checked iphoneos/arm64 and ZIP integrity; Windows checked Payload/JRScan.app and nonempty executable.
-- Earlier failures fixed in meaningful commits: SwiftUI.Scene ambiguity and lipo argument order.
-- Physical installation, camera, capabilities, persistence/update tests are NOT verified. No scan/reconstruction code yet; do not imply these tests passed.
+Implement JR-Scan-Project-Brief.md autonomously. iPhone 16 Pro, Windows, no Mac, limited user time. Free local AltStore Classic signing, unsigned GitHub macOS CI builds. No Apple credentials in CI, paid services, cloud reconstruction runtime or library/design questions. Stable bundle ID fi.jzondu.jrscan; preserve same account/identity for updates. Batch physical tests and keep summaries concise.
 
-## Next step: one human installation batch
+## Current verified state
 
-User must use AltStore Classic/AltServer locally (never Apple credentials in CI/chat). Download artifact, extract outer ZIP, transfer JRScan.ipa to phone Files, AltStore My Apps > +. Follow README and official Windows guide. Report exact iOS version, whether AltStore/JR Scan opens, both capability rows, camera permission, and persistence ID/count after force-close/relaunch. No response to earlier OS/AltStore questions yet. Refresh before free signing expiry; do not uninstall for updates.
+- Repository https://github.com/Jzondu/jr-scan-ios, main. Workspace C:/Users/joona/Documents/ChatGPT/IOS 3Dscanner.
+- User reports iOS 27.0. Build 3 installation initially reported “wrong format” but user then confirmed: “now it worked and opens.” Exact cause not established. Installability gate passed; capabilities, camera and persistence were not explicitly reported.
+- Implemented guided ObjectCaptureSession/ObjectCaptureView with detection/bounds/feedback/coverage/multiple height passes, finish/cancel; durable per-scan inputs/checkpoints/manifests; on-device PhotogrammetrySession .reduced reconstruction with progress/errors/cancel/background interruption/restart; USDZ preview and sharing; Model I/O geometry OBJ export with transforms, winding, normals and meter/mm numerical scaling; export notes; local scan list/name/timestamps/delete confirmation; Files folder backup; plain-text diagnostics; device/persistence checks and sample notices.
+- Apple sample actual LICENSE.txt checked and preserved verbatim in JRScan/Resources/Apple-ObjectCapture-LICENSE.txt, bundled and accessible in Notices. See README for source URL/hash/license. No blanket third-party license.
+- Latest compiled source commit fb0c5c928247248ef120f98a7262df3df80da1f2, version 0.2.0 (6).
+- SUCCESSFUL build 6: https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007
+- IPA artifact: https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007/artifacts/13126618466 (JRScan-unsigned-6; extract outer ZIP).
+- Local extracted IPA: build/downloads/run-6/JRScan.ipa. Logs in build/downloads/run-6/logs. Ignored from git, preserved locally.
+- SHA-256 a372890da0a6976764a18b8f86aababfeb10b56e5c3f7f25d7d68fc6cbaf00cf independently matched CI.
+- Xcode 16.4 (16F6), iOS SDK 18.5, minimum iOS 18, XcodeGen 2.44.1, runner macos15 20261028.0489.1.
+- Synthetic macOS conversion tests PASS: nested transforms/nonuniform scale, reflected winding, inverse-transpose normals, nonempty triangle geometry, invalid-index rejection, 1000x units, actual USDZ import -> OBJ export using a deterministic aligned USDZ fixture. These are not physical sensor/reconstruction or iPhone conversion tests.
+- Build 6 compiles/packages. Physical installation, actual capture/reconstruction/export, scale, backups and persistence remain unverified. No known-good scan build tag yet.
+- Final source review fixed visible incomplete-stitching warnings, cancellation state and capture task cleanup. Do not broaden work while the physical scan gate is pending.
 
-After confirmation implement guided Object Capture -> durable inputs -> on-device PhotogrammetrySession .reduced -> preview -> actual triangle OBJ with transforms and meter/mm coordinates. Then remaining essentials from brief. Check actual Apple sample source license before reuse. No cloud runtime reconstruction, paid services, Apple credentials in CI, or scope expansion while device gate is pending.
+## Next user test (one batch)
 
-## Access / build operations
+Update in place to 0.2.0 (6), do not uninstall. Extract artifact ZIP, transfer JRScan.ipa to iPhone Files, install via AltStore Classic My Apps > + with AltServer reachable. Check old persistence marker survives if recorded, both capabilities Supported, allow Camera. Scan one matte textured object, finish/save, reconstruct while foreground, rotate/zoom preview, export same model in meters and mm, save all offered files externally, open in Blender/MeshLab on Windows, check geometry and 1000x coordinate dimensions. Force-close/reopen and confirm scan/model persistence. Save scan backup to Files if practical. If a step fails, obtain actual error and exported diagnostic text before requesting another complete scan.
 
-Git transport authentication works through Windows Git Credential Manager. Portable CLI at .tools/gh/bin/gh.exe has no separate stored login, but saved Git credential successfully authorized API calls and workflow dispatch. Retrieve it only into a process-local GH_TOKEN without printing, logging or writing the secret. Do not expose credential-fill output. Workflow is manually triggered; no automatic build for documentation-only commits. Artifact retention seven days; local IPA preserved.
+Then fix observed failures and test interruption/cancellation/retry, next in-place update and refresh preservation. Tag known-good only after physical evidence. Textured OBJ deferred until geometry passes and user asks. README has build/install/scan/recovery instructions and evidence.
 
-User wants autonomous meaningful commits, README maintenance, concise summaries and batched human-only work. No Mac available locally.
+## Access / build
+
+Portable CLI .tools/gh/bin/gh.exe has no separate stored login. Windows Git Credential Manager's cached credential authorized pushes, API and dispatch. Retrieve only into process-local GH_TOKEN without printing/logging/persisting it; never expose credential-fill output. Manual workflow build-ios.yml on main, 25-minute timeout, seven-day retention. macOS synthetic conversion tests do not make the cloud a runtime reconstruction server. No local Xcode.

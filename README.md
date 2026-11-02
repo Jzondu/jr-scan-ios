@@ -1,52 +1,88 @@
 # JR Scan
 
-Personal iPhone 16 Pro object scanner. Specification: [JR-Scan-Project-Brief.md](JR-Scan-Project-Brief.md).
+Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Scan-Project-Brief.md).
 
-## Current gate
+## Current build and verified state
 
-Milestones 0–1 source is implemented: a native SwiftUI install check, camera permission handling, Object Capture/reconstruction capability checks, app/build/OS information, and a durable local marker. **Cloud compilation and IPA packaging passed; physical installation is pending.** There is no scanning UI yet. Milestones 2–3 start only after installation is confirmed. The cloud Mac builds the app; later reconstruction runs on the iPhone, offline.
+**Version 0.2.0 (6)**: [download JRScan-unsigned-6](https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007/artifacts/13126618466) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007).
 
-Stable application identity: **`fi.jzondu.jrscan`**. Minimum OS: **iOS 18.0**. Do not change the bundle ID for updates. Use the same local signing account and install in place; preserve important files externally. AltStore may rewrite the signed identity for your account; update persistence still needs a physical test.
+Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 
-## Build without a Mac
+- Build 3 (0.1.0) installed and opened on the user's iPhone; user reports iOS **27.0**. An initial “wrong format” report was followed by confirmation that installation/launch worked; its exact cause was not established.
+- Build 6 compiled and packaged successfully on macos-15, Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `fb0c5c928247248ef120f98a7262df3df80da1f2`.
+- Synthetic geometry checks passed on the macOS runner: nested transforms, nonuniform scale, reflected winding, inverse-transpose normals, triangle topology, invalid index/empty geometry rejection, 1000x meter/mm conversion, and USDZ import → OBJ export. These are not sensor/reconstruction or iPhone conversion tests.
+- Downloaded build 6 independently matches CI SHA-256: `a372890da0a6976764a18b8f86aababfeb10b56e5c3f7f25d7d68fc6cbaf00cf`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
+- **Build 6 installation, actual capture/reconstruction, iPhone OBJ conversion, physical scale, sharing, backup and update persistence remain unverified.**
 
-1. Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml).
-2. Select **Run workflow → main → Run workflow**. No secrets or Apple credentials are needed. Only manual runs are enabled to avoid repeated compute usage.
-3. After the run succeeds, download **JRScan-unsigned-N** under Artifacts. **Extract the outer GitHub artifact ZIP on Windows** to obtain **JRScan.ipa** and `build-info.txt`. Do not select the outer ZIP in AltStore. Downloads expire after seven days; keep a known-good IPA locally.
-4. If a run fails, download **JRScan-build-logs-N** or inspect its build step. A successful cloud build does not establish installability or sensor access.
+Stable identity: **`fi.jzondu.jrscan`**, minimum iOS **18.0**. Keep this identity and the same local signing account for updates. AltStore may rewrite the signed bundle identifier for the account; actual update persistence needs testing. The build SDK is recorded above; an older SDK does not itself establish incompatibility with a newer runtime. The install-check build launched on the user's reported iOS 27.0; the new workflow still needs physical verification there.
 
-The standard `macos-15` runner uses its installed default stable Xcode; no unsupported hard-coded Xcode application path. The script rejects SDKs older than iOS 18 and records Xcode, SDK, runner image, XcodeGen version, commit, build number and IPA SHA-256. Runner defaults can change; use the recorded versions when reproducing a particular build. If the phone OS is newer than the build SDK, investigate with the exact OS/SDK pair before claiming compatibility.
+## Windows installation and updates
 
-Project configuration is source-controlled in `project.yml`; XcodeGen **2.44.1** is downloaded with SHA-256 verification. It creates `JRScan.xcodeproj` and a shared `JRScan` scheme. On a Mac with stable Xcode and iOS 18+ SDK, run `bash scripts/build-ipa.sh` from a fresh checkout. No local XcodeGen install is needed. CI builds Release for `generic/platform=iOS`, disables code signing, verifies the `iphoneos` platform and arm64 executable, packages exactly `Payload/JRScan.app`, and checks the ZIP. This is a device app, not a simulator executable. CI never reconstructs user scans.
+1. Set up **AltStore Classic**, not PAL, following the [official Windows guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows). Use its specified Apple iTunes/iCloud components and troubleshooting exceptions. Run AltServer, connect/unlock the iPhone by USB, accept Trust and enable Wi-Fi sync.
+2. Install AltStore through AltServer. Enter Apple credentials **only locally into AltServer**, never in GitHub or chat. Trust the developer profile if requested. Enable **Settings → Privacy & Security → Developer Mode**, including restart/confirmation.
+3. Download and extract the GitHub artifact ZIP on Windows. Transfer **JRScan.ipa** to iPhone Files (for example using iCloud Drive). With AltServer reachable, choose **AltStore Classic → My Apps → + → JRScan.ipa**.
+4. For updates, install in place using the same account and bundle identity. **Do not delete the installed app.** Export important data first; uninstalling can remove local files. Keep an external copy of a known-good IPA.
+5. Refresh JR Scan and AltStore before free signing expires (normally seven days). Free accounts have active-app limits, and AltStore occupies a slot. Automatic refresh is best effort; keep AltServer reachable, with USB as a fallback.
 
-GitHub standard public-repository runner use is free under current service policy; private repositories have allowances. Do not enable paid overages for this project. No paid runner, runtime backend or Apple membership is required by this workflow.
+If AltStore reports an invalid format, confirm the selected file is the extracted **JRScan.ipa**, not the outer artifact ZIP or a downloaded HTML page. If it still fails, report the exact error/domain/code, filename, and AltStore/AltServer versions; do not assume the OS or signing route is the cause.
 
-## Windows / iPhone installation (one batch)
+## Scan and export
 
-1. Follow the [official AltStore Classic Windows guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows), including its Apple iTunes/iCloud requirements and exceptions. Use **Classic**, not PAL. Run AltServer, connect/unlock the phone by USB, accept Trust, and enable Wi-Fi sync. Install AltStore using AltServer. Enter Apple credentials only locally into AltServer, never in GitHub or this chat.
-2. Trust the developer profile if requested. Enable **Settings → Privacy & Security → Developer Mode**, including restart and confirmation. Confirm AltStore opens.
-3. Transfer the extracted `JRScan.ipa` to iPhone Files (e.g. iCloud Drive). With AltServer reachable, open **AltStore Classic → My Apps → +**, select the IPA and complete installation.
-4. Open JR Scan. Report exact iOS version, app/build version, whether both capability rows say Supported, and whether allowing Camera works. If permission is denied, the app provides Open Settings.
-5. Note the persistence ID and launch count. Force-close/reopen; confirm the ID stays the same and count increases. Keep this ID for the later in-place update check. Send the actual error or screenshot only when something fails.
+1. Open **New object scan**, allow Camera, and aim at a stationary matte textured object in even light. Start around 10–30 cm across for a forgiving first test.
+2. Select **Detect object**, adjust the bounds, then **Start capture**. Move slowly around the object; follow Apple's camera view, coverage dial and quality feedback. Automatic capture is enabled; manual **Take image** is also available. When a pass completes, select **New pass at another height** as practical. Keep the object stationary; an object-flip workflow is not part of this first version.
+3. Choose **Finish & save**. Wait for the framework to finish saving input before returning to the scan list. Cancellation keeps already-written inputs, though partial captures may not reconstruct.
+4. Open the saved scan and choose **Reconstruct saved input**. This runs **on the iPhone**, using the supported iOS **Reduced** level, with actual framework progress. **Keep JR Scan in the foreground.** Backgrounding cancels processing and records interruption. A retry starts a new request from saved input/checkpoints; arbitrary mid-session resume is not promised. Each attempt writes a new USDZ without replacing earlier outputs.
+5. Choose **Preview — rotate and zoom**. The original USDZ remains available for sharing even if OBJ conversion fails.
+6. Select **Meters** or **Millimeters**, then **Export geometry OBJ…**. Use the share sheet's **Save to Files** and save all offered companion files. Model I/O imports the original, flattens hierarchy transforms into new triangle buffers, transforms normals, corrects reflected winding, and encodes OBJ. The exported file is checked for nonempty triangle geometry and valid vertex/normal indices before sharing. Unsupported topology/conversion produces an error, retaining the source; no point cloud or renamed USDZ is substituted.
+7. The unit choice numerically scales coordinates: millimeters = meter coordinates × **1000**. Units appear in the filename and export note. OBJ has no universal unit declaration; configure Blender/MeshLab's importer accordingly. Metric reconstruction is not metrology-grade accuracy. Compare with a known physical measurement and record discrepancy.
 
-Refresh both JR Scan and AltStore before free signing expires (normally seven days). Free accounts have active-app limits; AltStore occupies a slot. Keep AltServer reachable; automatic refresh is best effort and USB is a fallback. **Do not uninstall as a routine update step**: uninstalling can remove local data. Back up future scans through Files/share before updates.
+Geometry OBJ is the current export; textured OBJ is deferred until geometry passes physical tests. Reflective, transparent, thin, moving or featureless subjects may reconstruct poorly.
 
-## Next gates
+## Local files, recovery and diagnostics
 
-After the install check passes: guided ObjectCaptureSession/ObjectCaptureView capture → durable input → on-device PhotogrammetrySession `.reduced` reconstruction → preview → actual triangle OBJ conversion with transforms and explicit meters/mm coordinates. Then scan list, cancellation/interruption recovery, backups and exportable diagnostics. Only request a controlled scan test after that build compiles and is downloadable. No promise of arbitrary reconstruction resume or metrology accuracy.
+- Scan folders: **Files → On My iPhone → JR Scan → Scans → UUID**. Each stores an atomic `scan.json`, `Images`, `Checkpoints`, `Models`, `Exports` and a bounded plain-text event log. Names, IDs, timestamps and processing/export states are persistent.
+- Force-quit/restart during capture or reconstruction marks an unfinished scan interrupted on next launch. Saved inputs remain; reconstruct from them if usable. Previous successful models stay available after a failed retry. Partial reconstruction output is never presented as a successful new model.
+- **Save scan and capture inputs to Files…** copies the whole scan directory through the system document picker, including photographs and checkpoints. Choose an external destination. No iCloud entitlement is required for ordinary Files export. Do not edit internal files while a scan is processing. This version does not have a backup-import UI.
+- **Share diagnostic text…** exports version, OS/device family, capability support, stage, warnings and errors. It excludes photo contents and account credentials. Do not send the full scan backup when only a diagnostic log is needed.
+- **Delete scan…** requires confirmation and removes that scan's inputs/models/exports. Deletion is disabled during active work. Low-space checks require at least 1 GB free before starting capture, reconstruction or export; large scans may need more. Actual write/framework errors are also shown, and inputs are retained on processing/export failures.
+- **Device and persistence checks** retains the original marker ID/count from build 3, so in-place update persistence can be checked directly.
+- No user accounts, telemetry, API keys, mandatory network access or runtime reconstruction server. GitHub holds code/build artifacts, not scans. After installation, capture/reconstruction/export are designed to run offline; physical offline verification is pending.
 
-## Verification record
+## One batched device acceptance test for build 6
 
-- Windows source inspection only at initial implementation; no local Xcode/compiler is available.
-- Cloud build: [run 3 succeeded](https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930), source commit `15a3ef248d1e30eb7c2b5eb5a16cb21ac99baf27`, version `0.1.0 (3)`, Xcode 16.4 (16F6), iOS SDK 18.5, runner image macos15 20261028.0489.1. Download [JRScan-unsigned-3](https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930/artifacts/13124857814), extract its ZIP, and install JRScan.ipa. Downloaded IPA SHA-256 independently matched CI: `e988d09bbb16777d38394dc894c882ff47a29300b99af21b1688f86118ffebaf`. Payload layout and nonempty executable checked on Windows; device platform and arm64 verified by CI.
-- AltStore install, capabilities, camera, persistence and update tests: pending physical phone verification.
+1. Update in place from build 3. Confirm version **0.2.0 (6)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
+2. Scan one matte textured object, finish/save, and reconstruct with the app open. Verify preview rotates/zooms. If any step fails, share diagnostic text and the actual error instead of repeating the whole test.
+3. Export the same model in both meters and millimeters; save the offered files externally. Open in Blender/MeshLab on Windows. Verify a triangle mesh, expected chunks, and millimeter coordinate dimensions **1000x** the meter dimensions (account for importer unit settings). Compare a known physical dimension without assuming engineering accuracy.
+4. Force-close/reopen; confirm the scan, model and export status remain. Confirm Files backup works. In a later session, test cancellation/background interruption, restart from input, the next in-place update, and AltStore refresh/data persistence.
 
-## Sources / licenses
+## Reproducible cloud build
 
-No Apple sample source has been copied in this gate. Before adapting sample code in Milestone 2, inspect its actual license and preserve required notices. No blanket license is assigned to Apple frameworks or third-party code. XcodeGen is a build-only dependency downloaded with its bundled license; it is not included in the app.
+Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml) → **Run workflow → main → Run workflow**. No Apple credentials, certificates, signing profiles, paid services or secrets are required. Only manual triggers are enabled to avoid duplicate compute. Standard public-repository runner use is free under current GitHub policy; avoid enabling paid overages if switching to a private repository.
 
-- [Apple ObjectCaptureSession](https://developer.apple.com/documentation/realitykit/objectcapturesession)
-- [Apple PhotogrammetrySession support](https://developer.apple.com/documentation/realitykit/photogrammetrysession/issupported)
+The workflow runs synthetic conversion checks on macOS, then builds Release for **generic/platform=iOS**, with signing disabled. It verifies `iphoneos`, arm64 and bundle ID, packages `Payload/JRScan.app` into **JRScan.ipa**, validates ZIP integrity, and uploads IPA/build information plus build/test logs. Timeout: 25 minutes. Artifact retention: 7 days. A successful cloud build proves neither sensor access nor AltStore installation.
+
+Configuration is source-controlled in `project.yml`. Pinned XcodeGen **2.44.1** is downloaded with SHA-256 verification and generates the project/shared scheme. The runner's installed stable default Xcode is used, avoiding a guessed hard-coded application path. SDK <18 and visibly beta/preview versions are rejected. Exact Xcode/SDK/runner/XcodeGen versions, source commit, build number and IPA checksum appear in `build-info.txt`. Hosted images can change; use those recorded versions to reproduce a particular output. No compiler is available locally on Windows.
+
+On a Mac with a stable iOS 18+ SDK:
+
+```sh
+python3 tests/make_usdz_fixture.py
+mkdir -p build/logs
+xcrun --sdk macosx swiftc JRScan/OBJExporter.swift tests/GeometryChecks.swift -o build/geometry-checks
+build/geometry-checks build/geometry-fixture.usdz
+bash scripts/build-ipa.sh
+```
+
+The Mac is only the **build/test machine**. Runtime reconstruction remains on the phone.
+
+## Sample license and references
+
+Capture/reconstruction sequencing and guidance were adapted with reference to Apple's **ScanningObjectsUsingObjectCapture.zip**, published asset `c13a7fb3aa69`, downloaded November 2, 2026 (SHA-256 `aeed6e762a328a4a2a4a1af5cb61e3b9847304bb28c772c4bc204acc171e5305`). Its actual copyright/permission notice is preserved verbatim in [Apple-ObjectCapture-LICENSE.txt](JRScan/Resources/Apple-ObjectCapture-LICENSE.txt), included in the app bundle and accessible through **Notices**. No blanket license is assigned to Apple frameworks or unrelated third-party code. XcodeGen is build-only, downloaded with its bundled license, and is not included in the app.
+
+- [Apple guided capture sample](https://developer.apple.com/documentation/realitykit/scanning-objects-using-object-capture)
+- [ObjectCaptureSession](https://developer.apple.com/documentation/realitykit/objectcapturesession)
+- [iOS reconstruction detail levels](https://developer.apple.com/documentation/realitykit/photogrammetrysession/request/detail)
+- [Model I/O](https://developer.apple.com/documentation/modelio)
 - [GitHub runner software](https://github.com/actions/runner-images)
-- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-- [AltStore Windows setup](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
+- [AltStore Windows guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
+- [AltStore errors](https://faq.altstore.io/altstore-classic/error-codes)
