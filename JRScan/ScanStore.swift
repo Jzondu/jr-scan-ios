@@ -112,6 +112,8 @@ final class ScanStore: ObservableObject {
             var item = ScanRecord(id: id, name: "LiDAR \(Date().formatted(date: .abbreviated, time: .shortened))",
                                   created: Date(), updated: Date(), stage: .capturing)
             item.captureKind = "lidar"
+            item.reconstructionMode = "ARKit LiDAR scene mesh (.mesh), no photo reconstruction"
+            item.lastProcessingStage = "Live LiDAR capture"
             try write(item)
             scans.insert(item, at: 0)
             let controller = LidarCapture(directory: directory.appendingPathComponent("RawLiDAR"))
@@ -190,6 +192,7 @@ final class ScanStore: ObservableObject {
         }.value
         try update(id) {
             $0.modelName = name; $0.stage = .completed; $0.captureFinished = true
+            $0.lastProcessingStage = "LiDAR mesh assembly and OBJ saved"
             $0.editedModelName = nil; $0.editSummary = nil; $0.exportMessage = nil
             $0.message = "Live LiDAR geometry: \(count) triangles. Coarse untextured surface estimate; crop surroundings before export. Not metrology-grade accuracy."
         }
