@@ -12,6 +12,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Verify geometry conversion on synthetic models
+        run: |
+          set -o pipefail
+          mkdir -p build/logs
+          xcrun --sdk macosx swiftc JRScan/OBJExporter.swift tests/GeometryChecks.swift -o build/geometry-checks
+          build/geometry-checks | tee build/logs/geometry-tests.txt
       - name: Build and package device IPA (no signing)
         run: bash scripts/build-ipa.sh
       - name: Upload IPA and build information

@@ -38,7 +38,7 @@ unzip -Z1 build/JRScan.ipa | grep -qx 'Payload/JRScan.app/Info.plist'
   echo 'JR Scan — unsigned device IPA, install with AltStore Classic'
   echo "Commit: $(git rev-parse HEAD)"
   echo "Build: $build_number"
-  echo 'Version: 0.1.0'
+  echo "Version: $(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")"
   echo 'Bundle ID: fi.jzondu.jrscan'
   echo 'Deployment target: iOS 18.0'
   echo "Runner image: ${ImageOS:-local} ${ImageVersion:-unknown}"

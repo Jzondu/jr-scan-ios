@@ -6,7 +6,7 @@ import UIKit
 @main
 struct JRScanApp: App {
     var body: some SwiftUI.Scene {
-        WindowGroup { InstallCheckView() }
+        WindowGroup { ScanListView() }
     }
 }
 
