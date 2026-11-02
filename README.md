@@ -4,15 +4,15 @@ Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Sca
 
 ## Current build and verified state
 
-**Version 0.3.0 (10)**: [download JRScan-unsigned-10](https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135/artifacts/13131157888) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135).
+**Version 0.4.0 (13)**: [download JRScan-unsigned-13](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600/artifacts/13137678171) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600).
 
 Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 
 - Build 3 (0.1.0) installed and opened on the user's iPhone; user reports iOS **27.0**. An initial “wrong format” report was followed by confirmation that installation/launch worked; its exact cause was not established.
-- Build 10 compiled and packaged successfully on the standard macos-15-intel runner (image macos15 20260824.0482.1, X64), Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `c111ccfcc14ed67b1986edafbfcf0ba169ae382a`.
+- Build 13 compiled and packaged successfully on the standard macos-26 runner (image macos26 20261026.0455.2, ARM64), Xcode 26.6 (17F113), iOS SDK 26.5, XcodeGen 2.44.1. Source commit `ed6f86fd57ff2c8ac009288ac9bc263a286a01a1`.
 - Synthetic geometry checks passed on the macOS runner: nested transforms, nonuniform scale, reflected winding, inverse-transpose normals, triangle topology, invalid index/empty geometry rejection, 1000x meter/mm conversion, and USDZ import → OBJ export. Diagnostic domain/code/underlying-chain extraction also passed a check excluding arbitrary userInfo payloads. These are not sensor/reconstruction or iPhone conversion tests.
-- Downloaded build 10 independently matches CI SHA-256: `15e5223018e6f3dad21d86777f7f8342bd69dbc328b7a4d3c002ad5d1cf51294`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
-- After build 9, the user reported “works” for the reconstruction retry, then again following the export/units/persistence test request. These are user reports; no measurement files or independent device traces were supplied. **Build 10 cropping/cleanup, editor interaction, edited export and update persistence still need physical verification.**
+- Downloaded build 13 independently matches CI SHA-256: `290a546a76d475d8d0ed290f4bf2e11d45a922dc7dd659eb7d96ff29dc7c4e71`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
+- After build 9, the user reported “works” for the reconstruction retry, then again following the export/units/persistence test request. These are user reports; no measurement files or independent device traces were supplied. **Build 13 live LiDAR capture/overlay, checkpoint recovery, real-mesh crop/cleanup, edited export and update persistence still need physical verification.**
 
 Stable identity: **`fi.jzondu.jrscan`**, minimum iOS **18.0**. Keep this identity and the same local signing account for updates. AltStore may rewrite the signed bundle identifier for the account; actual update persistence needs testing. The build SDK is recorded above; an older SDK does not itself establish incompatibility with a newer runtime. The install-check build launched on the user's reported iOS 27.0; the new workflow still needs physical verification there.
 
@@ -46,6 +46,23 @@ Version 0.2.1 adds **Retry without object masking / checkpoints** to failed/inte
 
 For a failure, share diagnostic text **before recapturing**. New attempts record reconstruction mode, last framework stage, saved input count, whether capture finish was confirmed, available disk space, Swift error type/simple case, NSError domain/code and a bounded underlying error chain. The formatter selects text fields rather than dumping arbitrary `userInfo` payloads; a synthetic regression checks this. Older failures cannot acquire missing past details retroactively; one retry on the updated build records the richer report. Build 6 reached reconstruction on the phone but failed with the screenshot error above. The supplied diagnostic log confirmed 25 saved images and two failed reconstruction attempts, without the detailed processing stage. The user subsequently reported that the build 9 retry worked; the original root cause remains unproven.
 
+## Live LiDAR surface scan (0.4.0)
+
+Build 13 passed synthetic checks for padded buffer offsets/strides, 16/32-bit indices, truncated/invalid input rejection, anchor-to-world transforms, reflected normals/winding, combined multi-anchor OBJ, binary checkpoint round trip, replacement/removal of updated anchors and recovery. These tests use generated data on the build Mac; real LiDAR capture and quality have not been phone-tested.
+
+Select **New live LiDAR scan** for a separate ARKit `sceneReconstruction = .mesh` path. It directly records ARKit's LiDAR-derived scene mesh; it does not invoke Object Capture or photo reconstruction. Existing **New object scan** remains available for photo detail. ARKit returns a processed surface estimate, not raw per-ray sensor samples. Hardware support and Camera permission are checked.
+
+1. Aim at nearby static surfaces and move slowly around them from several angles. The camera view overlays the current mesh in teal wireframe. Watch the tracking message and triangle/patch counts. LiDAR captures surroundings too; it is coarse for small-object detail and does not promise engineering accuracy.
+2. Checkpoints save approximately every two seconds. **Finish & save mesh** stops capture, flushes current patches, applies every anchor's world transform and index offsets, removes duplicate/degenerate geometry, and saves a validated meter OBJ. It keeps all disconnected pieces by default; choose what to remove afterward in Crop & clean mesh.
+3. Open the scan and **Preview original LiDAR mesh**. Use the existing **Crop & clean mesh**, geometry preview and **Export geometry OBJ…** meters/mm controls. **Share original LiDAR OBJ (meters)** shares the unedited meter geometry. This mode has no textured USDZ output or RGB texture capture.
+4. **Close and keep saved mesh**, an interruption, or a force-quit can leave an unfinished scan. Open it and select **Recover saved LiDAR mesh** to combine its last committed patches. A force-quit can lose changes since the most recent completed checkpoint. Recovery does not restart the AR tracking session or merge separate captures. After a pause/interruption, finish the retained mesh or close and start a new scan; tracking is deliberately not auto-resumed across an uncertain coordinate origin.
+
+Local `RawLiDAR/index.json` references binary property-list patches with vertices, normals, triangle indices and anchor-to-world transforms. Updated anchors replace old revisions; removed anchors are removed from the next committed snapshot. Changed patch files are written before the atomic index commit, and obsolete committed revisions are retired afterward. Final model publication follows validated OBJ writing. The scan backup includes the archive; it contains geometry, not photographs. Disk failures are reported and pause capture; previously committed checkpoints remain recoverable.
+
+To bound memory and scan size, capture pauses at **250,000 triangles or 512 patches**, retaining accepted geometry and prompting you to finish. Plane detection/flattening is disabled. No automatic watertightness, fine-detail, exact-distance or full-room coverage guarantee is made. Capture, assembly, crop and export run locally; the build Mac only compiles and checks synthetic fixtures.
+
+**One device test:** update in place, choose New live LiDAR scan, move slowly around a nearby static surface for about 15–30 seconds, then Finish & save. Confirm a nonempty aligned mesh in preview, crop some surroundings, export OBJ and open it on Windows. Force-close/reopen to check saved geometry; use a second short capture with Close to check Recover saved LiDAR mesh. If any step fails, send the exact error and scan diagnostic text; no full photo recapture is needed.
+
 ## Crop and mesh cleanup (0.3.0)
 
 Open an existing scan with a model and select **Crop & clean mesh**. No recapture or reconstruction is required.
@@ -73,14 +90,14 @@ Build 10's synthetic tests passed for clipping surface area (including crossing 
 
 ## Additional scan acceptance checks
 
-1. Update in place from build 3. Confirm version **0.3.0 (10)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
+1. Update in place from build 3. Confirm version **0.4.0 (13)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
 2. Use the working reconstruction route when testing a new capture. Keep JR Scan open and inspect the preview for background/missing geometry. If a step fails, share diagnostic text and the exact error before further tests. No new capture is required for the crop/cleanup check above.
 3. Export the same model in both meters and millimeters; save the offered files externally. Open in Blender/MeshLab on Windows. Verify a triangle mesh, expected chunks, and millimeter coordinate dimensions **1000x** the meter dimensions (account for importer unit settings). Compare a known physical dimension without assuming engineering accuracy.
 4. Force-close/reopen; confirm the scan, model and export status remain. Confirm Files backup works. In a later session, test cancellation/background interruption, restart from input, the next in-place update, and AltStore refresh/data persistence.
 
 ## Reproducible cloud build
 
-The manual workflow offers standard `macos-15` (default) and `macos-15-intel` runners. Use Intel if the ARM queue is delayed; both build an arm64 iPhone app. Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml) → **Run workflow → main → Run workflow**. No Apple credentials, certificates, signing profiles, paid services or secrets are required. Only manual triggers are enabled to avoid duplicate compute. Standard public-repository runner use is free under current GitHub policy; avoid enabling paid overages if switching to a private repository.
+The manual workflow defaults to the successfully tested standard `macos-26` runner. Alternatives are `macos-26-intel`, `macos-15` and `macos-15-intel` if a pool is queued; all build an arm64 iPhone app. No larger/paid runner is used. Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml) → **Run workflow → main → Run workflow**. No Apple credentials, certificates, signing profiles, paid services or secrets are required. Only manual triggers are enabled to avoid duplicate compute. Standard public-repository runner use is free under current GitHub policy; avoid enabling paid overages if switching to a private repository.
 
 The workflow runs synthetic conversion checks on macOS, then builds Release for **generic/platform=iOS**, with signing disabled. It verifies `iphoneos`, arm64 and bundle ID, packages `Payload/JRScan.app` into **JRScan.ipa**, validates ZIP integrity, and uploads IPA/build information plus build/test logs. Timeout: 25 minutes. Artifact retention: 7 days. A successful cloud build proves neither sensor access nor AltStore installation.
 
@@ -91,7 +108,7 @@ On a Mac with a stable iOS 18+ SDK:
 ```sh
 python3 tests/make_usdz_fixture.py
 mkdir -p build/logs
-xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift JRScan/MeshEditing.swift tests/GeometryChecks.swift tests/MeshEditingChecks.swift -o build/geometry-checks
+xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift JRScan/MeshEditing.swift JRScan/LidarMesh.swift tests/GeometryChecks.swift tests/MeshEditingChecks.swift tests/LidarMeshChecks.swift -o build/geometry-checks
 build/geometry-checks build/geometry-fixture.usdz
 bash scripts/build-ipa.sh
 ```

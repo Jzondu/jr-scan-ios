@@ -2,38 +2,39 @@
 
 ## Task and constraints
 
-Implement JR-Scan-Project-Brief.md autonomously; newest user request: add crop and mesh cleanup. iPhone16Pro, reported iOS27.0, Windows/no Mac/limited time. Unsigned GitHub macOS builds, local AltStore Classic free signing. No paid services, Apple credentials in CI, cloud runtime reconstruction, or library/design questions. Preserve stable fi.jzondu.jrscan bundle ID, same signing account, original scan inputs/models, sample licenses, meaningful commits and README. Batch physical tests.
+Specification JR-Scan-Project-Brief.md; latest user request: implement a LiDAR scan. Previously requested crop/cleanup already implemented. iPhone16Pro, reported iOS27.0, Windows/no Mac/limited time. Unsigned GitHub macOS device builds, local AltStore Classic free signing. Stable fi.jzondu.jrscan bundle ID and same signing account for updates. No paid services, Apple credentials in CI, cloud runtime reconstruction, or library/design questions. Preserve original data/sample licenses, meaningful commits, README, batch physical tests.
 
 Workspace C:/Users/joona/Documents/ChatGPT/IOS 3Dscanner. Public repository https://github.com/Jzondu/jr-scan-ios, main.
 
 ## Device history
 
-Build3 install check launched. Build6 captured 25 images; reconstruction twice failed CoreOC.PhotogrammetrySession.Error6 (no proven numeric-code cause). Build9 v0.2.1 added saved-image retry without masks/checkpoint reuse and richer diagnostics. User replied “works” after the retry, then “works” following export/units/persistence checks. Treat these as user reports, not independent measurement evidence. No need to ask for a fresh capture for editor testing. Working reconstruction remains on iPhone; source/CI uses .reduced and folder input.
+Build3 installed/launched. Build6 captured25images; two CoreOC.PhotogrammetrySession.Error6 failures (root cause unproven). Build9 added no-mask/no-checkpoint saved-image retry. User said “works” afterward, then “works” following export/units/persistence checks. Treat as user reports, no independent measurements. Build10 added crop/cleanup; no explicit physical crop report received. Do not conflate working photo flow with tested LiDAR.
 
-## Current implemented upgrade
+## Latest feature: live LiDAR
 
-- Native Crop & clean mesh editor on existing scans, interactive orbit/zoom plus 3D/front/top/side cameras and visible axis-aligned crop box, six min/max sliders with mm display.
-- Preview changes clips intersecting triangles precisely against six planes, retriangulates, welds near-identical positions, removes duplicate/degenerate faces, filters disconnected components by area (all / below1%largest / largestonly), compacts vertices and recalculates normals. Original winding retained.
-- Saved edits are separate validated meter OBJ revisions with notes under Edits/UUID. Original USDZ/capture images/checkpoints retained. Original preview/share remains available. Active saved edit is used by meters/mm OBJ export. Edited geometry has its own native preview. Restore original clears active edit reference but retains revision files in backup. New successful reconstruction clears active edit pointer, retaining old files.
-- Editing is geometry-only. No cap/hole filling, smoothing, texture editing, arbitrary winding repair or watertight guarantee. Empty/invalid crop rejected. Pending settings cannot be saved until previewed.
-- Optional manifest fields editedModelName/editSummary preserve decoding of older scans. File writes/validation precede atomic manifest publication.
-- Model I/O reuse; SceneKit for native preview, no new third-party dependencies. Apple sample license retained in app/source.
+New live LiDAR scan uses its own ARSession/ARSCNView, ARWorldTrackingConfiguration.sceneReconstruction=.mesh, plane flattening off, hardware/camera guards. Camera feed plus teal mesh wireframe, tracking feedback/counts. Captures ARKit's processed LiDAR surface mesh, not raw per-ray samples, photographs or texture. Separate Object Capture photo route retained unchanged.
+
+ARMeshAnchor buffers are copied with stride/offset and 16/32-bit index validation. Updates replace patches by anchor UUID; removals update the set. Combining applies column-major anchor-to-world transforms, normal inverse transpose, reflection winding, global index offsets. Final geometry cleanup keeps all components by default and removes duplicate/degenerate faces/recalculates normals before validated meter OBJ publication. The saved mesh works with existing preview, crop/cleanup, meters/mm export and Files backup.
+
+RawLiDAR binary plist patch revisions + atomic index checkpoint about every2seconds on a serial archive actor. New files written before index commit; obsolete committed revisions retired afterward. Finish flushes newest snapshot; Close keeps checkpoint inputs. Recover saved LiDAR mesh combines last committed patches locally, without photo reconstruction or resuming a tracking session. Force-quit may lose changes since last completed checkpoint. Interruption/background pauses tracking rather than silently mixing uncertain coordinate origins. Disk errors pause capture and stop automatic retry; explicit Finish retries. Limits250000triangles/512patches pause before oversized update. No watertight/fine-detail/metrology promise, no RGB textures.
+
+Existing crop editor saves immutable meter OBJ edit revisions, preserves original model, supports restore, precise six-plane clipping and loose-component policies; no hole caps/smoothing/texture editing/arbitrary winding repair. New original publication clears active edit pointer but retains prior files. Manifest captureKind is optional for old photo records. LiDAR modelName is OBJ; photo modelName remains USDZ. UI preview/share correctly handles both.
 
 ## Latest verified build
 
-Version **0.3.0 (10)**, source commit c111ccfcc14ed67b1986edafbfcf0ba169ae382a.
-Successful run https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135
-Artifact https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135/artifacts/13131157888 (JRScan-unsigned-10; extract outer ZIP to get JRScan.ipa).
-Local IPA build/downloads/run-10/JRScan.ipa; logs build/downloads/run-10/logs.
-SHA-256 15e5223018e6f3dad21d86777f7f8342bd69dbc328b7a4d3c002ad5d1cf51294 independently matches CI.
-Standard macos-15-intel, X64, image macos15 20260824.0482.1, Xcode16.4(16F6), SDK18.5, XcodeGen2.44.1; minimum iOS18. Native device compilation/packaging succeeded.
-Synthetic tests passed: precise crop area, crossing/multi-plane clipping, seam welding, cyclic duplicate/degenerate removal, fragment policies, normals, immutable source, empty crop rejection, edited OBJ write/reload, prior nested transforms/reflections/normal transforms/1000xunits/USDZ import and diagnostic payload safety.
-Phone crop/cleanup UI and real edited-export/persistence tests NOT yet performed. Do not claim these passed.
+Version **0.4.0 (13)**; compiled source ed6f86fd57ff2c8ac009288ac9bc263a286a01a1.
+SUCCESSFUL run https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600
+Artifact https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600/artifacts/13137678171 (JRScan-unsigned-13; extract outer ZIP for JRScan.ipa).
+Local IPA build/downloads/run-13/JRScan.ipa; logs build/downloads/run-13/logs.
+SHA-256 290a546a76d475d8d0ed290f4bf2e11d45a922dc7dd659eb7d96ff29dc7c4e71 independently matches CI.
+Standard macos-26, ARM64, image macos26 20261026.0455.2, Xcode26.6(17F113), iOS SDK26.5, XcodeGen2.44.1; minimum iOS18. Native device compilation/package passed.
+All synthetic tests PASS: prior transforms/reflections/normals/1000xunits/USDZ/diagnostic filtering/crop/cleanup, plus LiDAR buffers,16/32bitindices, transforms, combinedOBJ, checkpointroundtrip, anchormutation/removal and recovery.
+LiDAR sensor access/overlay/quality/recovery and real edited exports are NOT phone-tested. No known-good LiDAR tag. Runs11–12 superseded while standard macos15Intel/ARM queued; run13 on macos26 succeeded. Workflow default now macos26 (same runner actually tested in run13), alternatives26Intel/15/15Intel, standard only. No new binary build needed for documentation/default-choice-only changes.
 
-## Next human test, one batch
+## Next human test (batch)
 
-Install build10 IN PLACE (same identity/account; do not uninstall). Existing scan > Crop & clean mesh > adjust box > Preview changes > Save edited geometry. Check edited preview and export OBJ to Windows. Force-close/reopen and confirm saved edit; check original USDZ and Restore original geometry. If failure, exact step/error plus diagnostics; do not request a new scan first. Retain known-working build9 IPA and external backups. Keep AltStore/JRScan refreshed before free signing expiry.
+Install build13 IN PLACE (same identity/account; do not uninstall). New live LiDAR scan: move slowly around nearby static surfaces for15–30seconds while mesh/counts appear, Finish & save, check original LiDAR preview, crop some surroundings, export OBJ to Windows. Force-close/reopen; ensure saved model persists. A second short capture with Close can test Recover saved LiDAR mesh. If any step fails, exact error/step plus diagnostic text; do not ask for a full photo recapture. Keep known-working previous IPA and external backups; refresh AltStore/JRScan before free signing expires.
 
 ## Tools/build
 
-Portable gh .tools/gh/bin/gh.exe. Windows Git Credential Manager's cached credential authorizes pushes/API/dispatch; retrieve into process-local GH_TOKEN without printing/logging/persisting secrets or raw credential-fill output. Manual workflow build-ios.yml runner choice macos-15(default) or macos-15-intel; Intel avoided ARM queue previously. Standard runners only, 25min timeout, 7day artifacts. Never use CI to reconstruct personal scans. No local Xcode. README now has editing instructions, limitations, build/test evidence and phone test. Documentation-only commits do not trigger builds.
+Portable gh .tools/gh/bin/gh.exe. Git Credential Manager cached credential authorizes pushes/API/dispatch; retrieve only to process-local GH_TOKEN without printing/logging/persisting secrets or raw credential-fill. Workflow manual build-ios.yml, timeout25min, artifacts7days, standard runners only. CI runs generated fixtures only, never personal scan reconstruction. No local Xcode. Apple sample license remains bundled and in source. README has live scan/edit/install/build instructions and test evidence. Documentation-only changes do not trigger builds.
