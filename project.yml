@@ -1,0 +1,37 @@
+name: JRScan
+options:
+  bundleIdPrefix: fi.jzondu
+  deploymentTarget:
+    iOS: '18.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    MARKETING_VERSION: '0.1.0'
+    CURRENT_PROJECT_VERSION: '1'
+    CODE_SIGNING_ALLOWED: NO
+    TARGETED_DEVICE_FAMILY: '1'
+targets:
+  JRScan:
+    type: application
+    platform: iOS
+    sources: [JRScan]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fi.jzondu.jrscan
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: JR Scan
+        INFOPLIST_KEY_NSCameraUsageDescription: JR Scan needs the camera to photograph objects for local 3D reconstruction.
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+schemes:
+  JRScan:
+    build:
+      targets:
+        JRScan: all
+    run:
+      config: Debug
+    archive:
+      config: Release

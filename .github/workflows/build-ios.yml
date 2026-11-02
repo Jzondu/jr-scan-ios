@@ -1,0 +1,33 @@
+name: Build unsigned iPhone IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: unsigned-ipa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package device IPA (no signing)
+        run: bash scripts/build-ipa.sh
+      - name: Upload IPA and build information
+        uses: actions/upload-artifact@v4
+        with:
+          name: JRScan-unsigned-${{ github.run_number }}
+          path: |
+            build/JRScan.ipa
+            build/build-info.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload diagnostic build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JRScan-build-logs-${{ github.run_number }}
+          path: build/logs/
+          if-no-files-found: warn
+          retention-days: 7
