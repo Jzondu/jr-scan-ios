@@ -29,3 +29,19 @@ Then fix observed failures and test interruption/cancellation/retry, next in-pla
 ## Access / build
 
 Portable CLI .tools/gh/bin/gh.exe has no separate stored login. Windows Git Credential Manager's cached credential authorized pushes, API and dispatch. Retrieve only into process-local GH_TOKEN without printing/logging/persisting it; never expose credential-fill output. Manual workflow build-ios.yml on main, 25-minute timeout, seven-day retention. macOS synthetic conversion tests do not make the cloud a runtime reconstruction server. No local Xcode.
+
+## Latest investigation — reconstruction error 6
+
+User supplied a screenshot with CoreOC.PhotogrammetrySession.Error error 6. This confirms build 6 reached reconstruction on device and failed, not a successful model/OBJ. Scan ID in screenshot is 0A1B2034-37E7-4915-BF64-F6A9404F9F2E. Requested Share diagnostic text asynchronously; no log received yet. Root cause is UNKNOWN; do not map numeric code 6 definitively to alignment/memory/masks. Apple engineer in https://developer.apple.com/forums/thread/827696 suggests an images-without-masks check for a similar case, not proof of this cause.
+
+Implemented version 0.2.1: optional failed/interrupted/cancelled scan retry without masking AND checkpoint reuse, preserving original saved images/checkpoints/output history. Default guided mode unchanged. Shows warning about possible background geometry. Adds persisted reconstruction mode, last processing stage, typed/simple Swift error case, NSError domain/code/underlying chain, capture finish flag/input count/disk in diagnostics. New fields optional for old manifests. No arbitrary error userInfo dump. Tests verify selected diagnostic fields without payload leakage, alongside existing geometry checks.
+
+Latest source: 1667d713b939466a4d359a2da6dc109d6c20baf5, version 0.2.1 (9).
+SUCCESSFUL run: https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114
+Artifact JRScan-unsigned-9: https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114/artifacts/13127953700
+Local IPA build/downloads/run-9/JRScan.ipa, logs build/downloads/run-9/logs.
+SHA-256 0c84ac6d686a728b9f94952acd0d7501d9f1c4fae68fc2ce1b425f4a815b1290 independently matched CI.
+Runner standard macos-15-intel, X64, image macos15 20260824.0482.1; Xcode16.4 (16F6), SDK18.5, XcodeGen2.44.1.
+Runs7–8 were superseded/cancelled while ARM capacity was queued. Workflow now has a choice of standard macos-15 (default) or macos-15-intel; records runner architecture. No paid runners. No runtime reconstruction on the build Mac.
+
+Next: install build9 IN PLACE (same identity/account), open existing failed scan, Retry without object masking / checkpoints, foreground. Do NOT request a fresh capture first. If failure, obtain new diagnostic text and analyze actual stage/type/details. If success, inspect background geometry, preview/OBJ and scale, then remaining physical acceptance tests. No claim fallback is proven or error6 resolved. README updated to this recovery-first test. Earlier build6 artifact links in this handoff are historical.

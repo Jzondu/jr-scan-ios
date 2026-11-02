@@ -4,15 +4,15 @@ Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Sca
 
 ## Current build and verified state
 
-**Version 0.2.0 (6)**: [download JRScan-unsigned-6](https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007/artifacts/13126618466) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41415198007).
+**Version 0.2.1 (9)**: [download JRScan-unsigned-9](https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114/artifacts/13127953700) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114).
 
 Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 
 - Build 3 (0.1.0) installed and opened on the user's iPhone; user reports iOS **27.0**. An initial “wrong format” report was followed by confirmation that installation/launch worked; its exact cause was not established.
-- Build 6 compiled and packaged successfully on macos-15, Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `fb0c5c928247248ef120f98a7262df3df80da1f2`.
-- Synthetic geometry checks passed on the macOS runner: nested transforms, nonuniform scale, reflected winding, inverse-transpose normals, triangle topology, invalid index/empty geometry rejection, 1000x meter/mm conversion, and USDZ import → OBJ export. These are not sensor/reconstruction or iPhone conversion tests.
-- Downloaded build 6 independently matches CI SHA-256: `a372890da0a6976764a18b8f86aababfeb10b56e5c3f7f25d7d68fc6cbaf00cf`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
-- **Build 6 installation, actual capture/reconstruction, iPhone OBJ conversion, physical scale, sharing, backup and update persistence remain unverified.**
+- Build 9 compiled and packaged successfully on the standard macos-15-intel runner (image macos15 20260824.0482.1, X64), Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `1667d713b939466a4d359a2da6dc109d6c20baf5`.
+- Synthetic geometry checks passed on the macOS runner: nested transforms, nonuniform scale, reflected winding, inverse-transpose normals, triangle topology, invalid index/empty geometry rejection, 1000x meter/mm conversion, and USDZ import → OBJ export. Diagnostic domain/code/underlying-chain extraction also passed a check excluding arbitrary userInfo payloads. These are not sensor/reconstruction or iPhone conversion tests.
+- Downloaded build 9 independently matches CI SHA-256: `0c84ac6d686a728b9f94952acd0d7501d9f1c4fae68fc2ce1b425f4a815b1290`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
+- **Build 9 installation, actual capture/reconstruction, iPhone OBJ conversion, physical scale, sharing, backup and update persistence remain unverified.**
 
 Stable identity: **`fi.jzondu.jrscan`**, minimum iOS **18.0**. Keep this identity and the same local signing account for updates. AltStore may rewrite the signed bundle identifier for the account; actual update persistence needs testing. The build SDK is recorded above; an older SDK does not itself establish incompatibility with a newer runtime. The install-check build launched on the user's reported iOS 27.0; the new workflow still needs physical verification there.
 
@@ -38,6 +38,14 @@ If AltStore reports an invalid format, confirm the selected file is the extracte
 
 Geometry OBJ is the current export; textured OBJ is deferred until geometry passes physical tests. Reflective, transparent, thin, moving or featureless subjects may reconstruct poorly.
 
+## Reconstruction failure / retry without recapturing
+
+A device screenshot reported `CoreOC.PhotogrammetrySession.Error`, code **6**, during reconstruction. This confirms a framework reconstruction failure; the numeric code alone does not establish its cause. The capture inputs remain local. Do not delete the app or scan to troubleshoot it.
+
+Version 0.2.1 adds **Retry without object masking / checkpoints** to failed/interrupted/cancelled scans. It reads the existing saved images, disables object masking and supplies no checkpoint directory. It leaves the original capture images/checkpoints intact and creates a new output filename. Background geometry may be included; that warning stays visible on a successful result. This is an alternate diagnostic attempt, not a verified solution or a change to the default guided path. [An Apple engineer recommended an image-only check](https://developer.apple.com/forums/thread/827696) in a similar mask-related report; that report does not prove the same cause here.
+
+For a failure, share diagnostic text **before recapturing**. New attempts record reconstruction mode, last framework stage, saved input count, whether capture finish was confirmed, available disk space, Swift error type/simple case, NSError domain/code and a bounded underlying error chain. The formatter selects text fields rather than dumping arbitrary `userInfo` payloads; a synthetic regression checks this. Older failures cannot acquire missing past details retroactively; one retry on the updated build records the richer report. Build 6 reached reconstruction on the phone but failed with the screenshot error above. Its actual failure stage and input count are still awaiting the user's log. Build 9 compiles and packages successfully; the fallback has not yet been verified on that saved scan.
+
 ## Local files, recovery and diagnostics
 
 - Scan folders: **Files → On My iPhone → JR Scan → Scans → UUID**. Each stores an atomic `scan.json`, `Images`, `Checkpoints`, `Models`, `Exports` and a bounded plain-text event log. Names, IDs, timestamps and processing/export states are persistent.
@@ -48,16 +56,16 @@ Geometry OBJ is the current export; textured OBJ is deferred until geometry pass
 - **Device and persistence checks** retains the original marker ID/count from build 3, so in-place update persistence can be checked directly.
 - No user accounts, telemetry, API keys, mandatory network access or runtime reconstruction server. GitHub holds code/build artifacts, not scans. After installation, capture/reconstruction/export are designed to run offline; physical offline verification is pending.
 
-## One batched device acceptance test for build 6
+## One batched device acceptance test for build 9
 
-1. Update in place from build 3. Confirm version **0.2.0 (6)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
-2. Scan one matte textured object, finish/save, and reconstruct with the app open. Verify preview rotates/zooms. If any step fails, share diagnostic text and the actual error instead of repeating the whole test.
+1. Update in place from build 3. Confirm version **0.2.1 (9)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
+2. First recover the existing failed scan: open it and select **Retry without object masking / checkpoints**, keeping JR Scan open. No recapture is needed. If it fails, share diagnostic text and the exact error before further tests. If it succeeds, inspect the preview for background/missing geometry, then continue below. A later new scan can verify the complete guided path.
 3. Export the same model in both meters and millimeters; save the offered files externally. Open in Blender/MeshLab on Windows. Verify a triangle mesh, expected chunks, and millimeter coordinate dimensions **1000x** the meter dimensions (account for importer unit settings). Compare a known physical dimension without assuming engineering accuracy.
 4. Force-close/reopen; confirm the scan, model and export status remain. Confirm Files backup works. In a later session, test cancellation/background interruption, restart from input, the next in-place update, and AltStore refresh/data persistence.
 
 ## Reproducible cloud build
 
-Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml) → **Run workflow → main → Run workflow**. No Apple credentials, certificates, signing profiles, paid services or secrets are required. Only manual triggers are enabled to avoid duplicate compute. Standard public-repository runner use is free under current GitHub policy; avoid enabling paid overages if switching to a private repository.
+The manual workflow offers standard `macos-15` (default) and `macos-15-intel` runners. Use Intel if the ARM queue is delayed; both build an arm64 iPhone app. Open [Actions → Build unsigned iPhone IPA](https://github.com/Jzondu/jr-scan-ios/actions/workflows/build-ios.yml) → **Run workflow → main → Run workflow**. No Apple credentials, certificates, signing profiles, paid services or secrets are required. Only manual triggers are enabled to avoid duplicate compute. Standard public-repository runner use is free under current GitHub policy; avoid enabling paid overages if switching to a private repository.
 
 The workflow runs synthetic conversion checks on macOS, then builds Release for **generic/platform=iOS**, with signing disabled. It verifies `iphoneos`, arm64 and bundle ID, packages `Payload/JRScan.app` into **JRScan.ipa**, validates ZIP integrity, and uploads IPA/build information plus build/test logs. Timeout: 25 minutes. Artifact retention: 7 days. A successful cloud build proves neither sensor access nor AltStore installation.
 
@@ -68,7 +76,7 @@ On a Mac with a stable iOS 18+ SDK:
 ```sh
 python3 tests/make_usdz_fixture.py
 mkdir -p build/logs
-xcrun --sdk macosx swiftc JRScan/OBJExporter.swift tests/GeometryChecks.swift -o build/geometry-checks
+xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift tests/GeometryChecks.swift -o build/geometry-checks
 build/geometry-checks build/geometry-fixture.usdz
 bash scripts/build-ipa.sh
 ```
