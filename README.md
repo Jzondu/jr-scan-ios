@@ -4,15 +4,15 @@ Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Sca
 
 ## Current build and verified state
 
-**Version 0.2.1 (9)**: [download JRScan-unsigned-9](https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114/artifacts/13127953700) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41418316114).
+**Version 0.3.0 (10)**: [download JRScan-unsigned-10](https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135/artifacts/13131157888) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41425218135).
 
 Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 
 - Build 3 (0.1.0) installed and opened on the user's iPhone; user reports iOS **27.0**. An initial “wrong format” report was followed by confirmation that installation/launch worked; its exact cause was not established.
-- Build 9 compiled and packaged successfully on the standard macos-15-intel runner (image macos15 20260824.0482.1, X64), Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `1667d713b939466a4d359a2da6dc109d6c20baf5`.
+- Build 10 compiled and packaged successfully on the standard macos-15-intel runner (image macos15 20260824.0482.1, X64), Xcode 16.4 (16F6), iOS SDK 18.5, XcodeGen 2.44.1. Source commit `c111ccfcc14ed67b1986edafbfcf0ba169ae382a`.
 - Synthetic geometry checks passed on the macOS runner: nested transforms, nonuniform scale, reflected winding, inverse-transpose normals, triangle topology, invalid index/empty geometry rejection, 1000x meter/mm conversion, and USDZ import → OBJ export. Diagnostic domain/code/underlying-chain extraction also passed a check excluding arbitrary userInfo payloads. These are not sensor/reconstruction or iPhone conversion tests.
-- Downloaded build 9 independently matches CI SHA-256: `0c84ac6d686a728b9f94952acd0d7501d9f1c4fae68fc2ce1b425f4a815b1290`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
-- **Build 9 installation, actual capture/reconstruction, iPhone OBJ conversion, physical scale, sharing, backup and update persistence remain unverified.**
+- Downloaded build 10 independently matches CI SHA-256: `15e5223018e6f3dad21d86777f7f8342bd69dbc328b7a4d3c002ad5d1cf51294`. ZIP integrity, stable bundle ID, device platform, arm64 executable, iPhone-only family, version, camera purpose and bundled license were inspected.
+- After build 9, the user reported “works” for the reconstruction retry, then again following the export/units/persistence test request. These are user reports; no measurement files or independent device traces were supplied. **Build 10 cropping/cleanup, editor interaction, edited export and update persistence still need physical verification.**
 
 Stable identity: **`fi.jzondu.jrscan`**, minimum iOS **18.0**. Keep this identity and the same local signing account for updates. AltStore may rewrite the signed bundle identifier for the account; actual update persistence needs testing. The build SDK is recorded above; an older SDK does not itself establish incompatibility with a newer runtime. The install-check build launched on the user's reported iOS 27.0; the new workflow still needs physical verification there.
 
@@ -46,6 +46,21 @@ Version 0.2.1 adds **Retry without object masking / checkpoints** to failed/inte
 
 For a failure, share diagnostic text **before recapturing**. New attempts record reconstruction mode, last framework stage, saved input count, whether capture finish was confirmed, available disk space, Swift error type/simple case, NSError domain/code and a bounded underlying error chain. The formatter selects text fields rather than dumping arbitrary `userInfo` payloads; a synthetic regression checks this. Older failures cannot acquire missing past details retroactively; one retry on the updated build records the richer report. Build 6 reached reconstruction on the phone but failed with the screenshot error above. Its actual failure stage and input count are still awaiting the user's log. Build 9 compiles and packages successfully; the fallback has not yet been verified on that saved scan.
 
+## Crop and mesh cleanup (0.3.0)
+
+Open an existing scan with a model and select **Crop & clean mesh**. No recapture or reconstruction is required.
+
+1. Rotate with one finger, pinch to zoom, and use the **3D / Front / Top / Side** views. Adjust the X, Y and Z Min/Max sliders to position the outlined crop box around the geometry to keep. Values are shown in millimeters; stored coordinates remain meters. The box uses model axes; it does not rotate with the camera. Reset crop box restores the current source's full bounds.
+2. Choose **Keep all pieces**, **Remove tiny pieces (<1% area)** (default), or **Keep largest piece only**. The threshold is relative to the largest connected piece's surface area, not its triangle count. Largest-only may remove intentional disconnected object parts or retain a large table; crop the background first and inspect the result.
+3. Choose **Preview changes**. Faces crossing the crop boundary are clipped and triangulated. Cleanup welds nearly identical positions at a small scale-relative tolerance, removes duplicate/degenerate faces, compacts unused vertices and recalculates area-weighted normals. It retains the source face winding. Use **Show unedited source** to compare. Changing controls invalidates the prepared result; preview again before saving. An empty crop is rejected.
+4. **Save edited geometry** writes a separate, validated meter OBJ and edit note. The scan then offers **Preview edited geometry** and **Export edited geometry OBJ…** with the existing meters/mm choice. The original textured USDZ and capture inputs remain untouched. **Restore original geometry…** switches editing/export back to the original; previous revision files remain in the scan backup. Reopening the editor starts from the current saved revision; Reset crop box does not restore geometry removed by an earlier saved revision.
+
+Edits are geometry only. Cut edges can stay open: this version does **not** fill holes, cap cuts, smooth/shrink geometry, repair arbitrary face winding, or promise a watertight printable mesh. A new successful reconstruction switches the active model to that new output and clears the active edit reference; old model/edit files remain in the backup. Failed edits do not replace the previous saved revision.
+
+Build 10's synthetic tests passed for clipping surface area (including crossing faces and multiple planes), seam welding, cyclic duplicate/degenerate removal, loose-piece policies, recalculated normals, source preservation, empty-crop rejection, and edited OBJ save/reload. Existing transform/units/USDZ/diagnostic checks also passed. The native editor compiled for device, but touch behavior and editing a real scan are awaiting phone testing.
+
+**One phone test:** update in place, open an existing scan, crop away a little background, preview, save, and export edited OBJ to Windows. Force-close/reopen to check the edit remains. Preview the original USDZ and try Restore original geometry to confirm recovery. Report the first failing step and diagnostic text rather than recapturing.
+
 ## Local files, recovery and diagnostics
 
 - Scan folders: **Files → On My iPhone → JR Scan → Scans → UUID**. Each stores an atomic `scan.json`, `Images`, `Checkpoints`, `Models`, `Exports` and a bounded plain-text event log. Names, IDs, timestamps and processing/export states are persistent.
@@ -58,7 +73,7 @@ For a failure, share diagnostic text **before recapturing**. New attempts record
 
 ## One batched device acceptance test for build 9
 
-1. Update in place from build 3. Confirm version **0.2.1 (9)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
+1. Update in place from build 3. Confirm version **0.3.0 (10)**; check that the old persistence marker ID survives and both capabilities say Supported. Allow Camera.
 2. First recover the existing failed scan: open it and select **Retry without object masking / checkpoints**, keeping JR Scan open. No recapture is needed. If it fails, share diagnostic text and the exact error before further tests. If it succeeds, inspect the preview for background/missing geometry, then continue below. A later new scan can verify the complete guided path.
 3. Export the same model in both meters and millimeters; save the offered files externally. Open in Blender/MeshLab on Windows. Verify a triangle mesh, expected chunks, and millimeter coordinate dimensions **1000x** the meter dimensions (account for importer unit settings). Compare a known physical dimension without assuming engineering accuracy.
 4. Force-close/reopen; confirm the scan, model and export status remain. Confirm Files backup works. In a later session, test cancellation/background interruption, restart from input, the next in-place update, and AltStore refresh/data persistence.
@@ -76,7 +91,7 @@ On a Mac with a stable iOS 18+ SDK:
 ```sh
 python3 tests/make_usdz_fixture.py
 mkdir -p build/logs
-xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift tests/GeometryChecks.swift -o build/geometry-checks
+xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift JRScan/MeshEditing.swift tests/GeometryChecks.swift tests/MeshEditingChecks.swift -o build/geometry-checks
 build/geometry-checks build/geometry-fixture.usdz
 bash scripts/build-ipa.sh
 ```
