@@ -1,10 +1,12 @@
 import Foundation
 import ModelIO
 import simd
+import Darwin
 
 @main
 struct GeometryChecks {
     static func main() throws {
+        setbuf(stdout, nil)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("JRScan-tests-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -53,16 +55,13 @@ struct GeometryChecks {
         print("PASS: empty geometry and invalid OBJ indices are rejected")
 
         // Exercise actual USDZ import -> Model I/O normalization -> OBJ encoding, not only in-memory buffers.
-        if MDLAsset.canExportFileExtension("usdz") {
-            let usdz = directory.appendingPathComponent("source.usdz")
-            try asset.export(to: usdz)
-            let converted = try OBJExporter.convert(source: usdz, destination: directory.appendingPathComponent("converted.obj"), units: .meters)
-            try require(converted.triangles == 1, "USDZ round trip lost geometry")
-            try require(simd_length(converted.minimum - a.minimum) < 0.0001, "USDZ round trip changed coordinate bounds")
-            print("PASS: USDZ -> geometry OBJ round trip")
-        } else {
-            throw ScanFailure.message("TEST FAILED: runner cannot produce USDZ fixture")
-        }
+        guard CommandLine.arguments.count == 2 else { throw ScanFailure.message("TEST FAILED: provide generated USDZ fixture") }
+        let usdz = URL(fileURLWithPath: CommandLine.arguments[1])
+        let converted = try OBJExporter.convert(source: usdz, destination: directory.appendingPathComponent("converted.obj"), units: .meters)
+        try require(converted.triangles == 1, "USDZ import lost geometry")
+        try require(simd_length(converted.minimum - a.minimum) < 0.0001, "USDZ import changed coordinate bounds")
+        try checkWindingAndNormals(directory.appendingPathComponent("converted.obj"))
+        print("PASS: USDZ -> geometry OBJ import/export")
     }
 
     static func fixture() -> MDLMesh {
