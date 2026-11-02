@@ -4,7 +4,7 @@ Personal iPhone 16 Pro object scanner. Specification: [JR-Scan-Project-Brief.md]
 
 ## Current gate
 
-Milestones 0–1 source is implemented: a native SwiftUI install check, camera permission handling, Object Capture/reconstruction capability checks, app/build/OS information, and a durable local marker. **Compilation and physical installation are unverified until recorded below.** There is no scanning UI yet. Milestones 2–3 start only after installation is confirmed. The cloud Mac builds the app; later reconstruction runs on the iPhone, offline.
+Milestones 0–1 source is implemented: a native SwiftUI install check, camera permission handling, Object Capture/reconstruction capability checks, app/build/OS information, and a durable local marker. **Cloud compilation and IPA packaging passed; physical installation is pending.** There is no scanning UI yet. Milestones 2–3 start only after installation is confirmed. The cloud Mac builds the app; later reconstruction runs on the iPhone, offline.
 
 Stable application identity: **`fi.jzondu.jrscan`**. Minimum OS: **iOS 18.0**. Do not change the bundle ID for updates. Use the same local signing account and install in place; preserve important files externally. AltStore may rewrite the signed identity for your account; update persistence still needs a physical test.
 
@@ -38,7 +38,7 @@ After the install check passes: guided ObjectCaptureSession/ObjectCaptureView ca
 ## Verification record
 
 - Windows source inspection only at initial implementation; no local Xcode/compiler is available.
-- Cloud build: pending (see Actions for evidence).
+- Cloud build: [run 3 succeeded](https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930), source commit `15a3ef248d1e30eb7c2b5eb5a16cb21ac99baf27`, version `0.1.0 (3)`, Xcode 16.4 (16F6), iOS SDK 18.5, runner image macos15 20261028.0489.1. Download [JRScan-unsigned-3](https://github.com/Jzondu/jr-scan-ios/actions/runs/41410289930/artifacts/13124857814), extract its ZIP, and install JRScan.ipa. Downloaded IPA SHA-256 independently matched CI: `e988d09bbb16777d38394dc894c882ff47a29300b99af21b1688f86118ffebaf`. Payload layout and nonempty executable checked on Windows; device platform and arm64 verified by CI.
 - AltStore install, capabilities, camera, persistence and update tests: pending physical phone verification.
 
 ## Sources / licenses
