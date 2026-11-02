@@ -42,6 +42,7 @@ unzip -Z1 build/JRScan.ipa | grep -qx 'Payload/JRScan.app/Info.plist'
   echo 'Bundle ID: fi.jzondu.jrscan'
   echo 'Deployment target: iOS 18.0'
   echo "Runner image: ${ImageOS:-local} ${ImageVersion:-unknown}"
+  echo "Runner architecture: ${RUNNER_ARCH:-$(uname -m)}"
   date -u
   cat build/logs/xcode.txt build/logs/sdk.txt build/logs/xcodegen.txt
   shasum -a 256 build/JRScan.ipa
