@@ -7,6 +7,14 @@ import Darwin
 struct GeometryChecks {
     static func main() throws {
         setbuf(stdout, nil)
+        let inner = NSError(domain: "Test.Underlying", code: 19, userInfo: [NSLocalizedDescriptionKey: "Input failed", "PhotoPayload": Data([1,2,3])])
+        let failure = NSError(domain: "CoreOC.PhotogrammetrySession.Error", code: 6,
+                              userInfo: [NSLocalizedDescriptionKey: "Reconstruction failed", NSUnderlyingErrorKey: inner,
+                                         "AccountSecret": "DO_NOT_LOG_THIS"])
+        let report = ReconstructionFailure.details(failure, stage: "imageAlignment")
+        try require(report.contains("CoreOC.PhotogrammetrySession.Error (6)") && report.contains("Test.Underlying (19)"), "Error domain/code chain is missing")
+        try require(!report.contains("DO_NOT_LOG_THIS") && !report.contains("PhotoPayload"), "Arbitrary error userInfo leaked into diagnostic text")
+        print("PASS: failure domain/code/underlying chain captured without arbitrary userInfo payloads")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("JRScan-tests-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }

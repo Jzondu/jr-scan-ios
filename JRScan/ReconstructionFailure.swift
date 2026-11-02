@@ -4,8 +4,13 @@ import Foundation
 enum ReconstructionFailure {
     static func details(_ error: Error, stage: String) -> String {
         var lines = ["Processing stage: \(stage)",
-                     "Swift error type: \(String(reflecting: type(of: error)))",
-                     "Swift error: \(String(String(describing: error).prefix(1500)))"]
+                     "Swift error type: \(String(reflecting: type(of: error)))"]
+        // Keep a simple enum case (e.g. processError) when available, but never
+        // print a generic NSError description that serializes its userInfo.
+        let value = String(describing: error)
+        if value.range(of: "^[A-Za-z_][A-Za-z0-9_.]*$", options: .regularExpression) != nil {
+            lines.append("Swift error case: \(value)")
+        }
         var current: NSError? = error as NSError
         var seen = Set<ObjectIdentifier>()
         for depth in 0..<4 {
