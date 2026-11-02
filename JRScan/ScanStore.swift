@@ -18,6 +18,10 @@ struct ScanRecord: Codable, Identifiable {
     var modelName: String?
     var message: String?
     var exportMessage: String?
+    // Optional fields keep manifests from builds 3–6 decodable without migration.
+    var reconstructionMode: String?
+    var lastProcessingStage: String?
+    var lastErrorDetails: String?
 }
 
 @MainActor
@@ -199,13 +203,15 @@ final class ScanStore: ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
-    func reconstruct(_ id: UUID) {
+    func reconstruct(_ id: UUID, mode: ReconstructionMode = .guided) {
         guard !busy else { return }
         guard PhotogrammetrySession.isSupported else { error = "On-device reconstruction is unsupported."; return }
         isProcessing = true
         activeID = id
         stopReason = nil
         isCancelling = false
+        progress = 0
+        processingStage = "Preparing saved input"
         processingTask = Task {
             do {
                 try checkSpace()
@@ -214,7 +220,14 @@ final class ScanStore: ObservableObject {
                 let output = try folder(id).appendingPathComponent("Models").appendingPathComponent(fileName)
                 // Preserve every earlier output; a retry writes a new file, never overwrites a good model.
                 var configuration = PhotogrammetrySession.Configuration()
-                configuration.checkpointDirectory = try checkpoints(id)
+                if mode == .guided {
+                    configuration.checkpointDirectory = try checkpoints(id)
+                } else {
+                    // Diagnostic fallback suggested by Apple for mask-related failures.
+                    // Do not reuse or delete capture/reconstruction checkpoint state.
+                    configuration.isObjectMaskingEnabled = false
+                    configuration.checkpointDirectory = nil
+                }
                 let session = try PhotogrammetrySession(input: try images(id), configuration: configuration)
                 reconstruction = session
                 activeID = id
@@ -223,16 +236,27 @@ final class ScanStore: ObservableObject {
                 processingStage = "Preparing input"
                 isProcessing = true
                 UIApplication.shared.isIdleTimerDisabled = true
-                try update(id) { $0.stage = .reconstructing; $0.message = nil }
-                log(id, "On-device reconstruction started (.reduced)")
+                try update(id) {
+                    $0.stage = .reconstructing; $0.message = nil
+                    $0.reconstructionMode = mode.rawValue
+                    $0.lastProcessingStage = processingStage
+                    $0.lastErrorDetails = nil
+                }
+                log(id, "On-device reconstruction started (.reduced), mode=\(mode.rawValue), saved images=\(imageCount(id)), capture finished=\(record(id)?.captureFinished ?? false)")
                 try session.process(requests: [.modelFile(url: output, detail: .reduced)])
                 var modelRequestCompleted = false
-                var reconstructionWarning: String?
+                var reconstructionWarning: String? = mode == .withoutMasking
+                    ? "Reconstructed without object masking or capture checkpoints. Background geometry may be included; inspect before export." : nil
                 for try await event in session.outputs {
                     switch event {
                     case .requestProgress(_, let fraction): progress = min(1, max(0, fraction))
                     case .requestProgressInfo(_, let info):
-                        processingStage = info.processingStage.map { String(describing: $0) } ?? "Reconstructing"
+                        let nextStage = info.processingStage.map { String(describing: $0) } ?? "Reconstructing"
+                        if nextStage != processingStage {
+                            processingStage = nextStage
+                            try update(id) { $0.lastProcessingStage = nextStage }
+                            log(id, "Processing stage: \(nextStage)")
+                        }
                     case .requestComplete(_, _): modelRequestCompleted = true
                     case .requestError(_, let failure): throw failure
                     case .processingComplete:
@@ -267,8 +291,12 @@ final class ScanStore: ObservableObject {
                 if isCancelling, stopReason == nil {
                     stage(id, .cancelled, message: "Reconstruction cancelled. Inputs and previous outputs retained.")
                 } else {
-                    stage(id, stopReason == nil ? .failed : .interrupted, message: stopReason ?? error.localizedDescription)
-                    self.error = "Reconstruction: \(stopReason ?? error.localizedDescription). Inputs and previous outputs are retained."
+                    let details = ReconstructionFailure.details(error, stage: processingStage)
+                    try? update(id) { $0.lastErrorDetails = details; $0.lastProcessingStage = processingStage }
+                    log(id, details)
+                    let message = stopReason ?? ReconstructionFailure.message(error)
+                    stage(id, stopReason == nil ? .failed : .interrupted, message: message)
+                    self.error = message
                 }
                 endProcessing()
             }
@@ -362,8 +390,13 @@ final class ScanStore: ObservableObject {
             Reconstruction supported: \(PhotogrammetrySession.isSupported)
             Scan: \(id.uuidString)
             Stage: \(item.stage.rawValue)
+            Reconstruction mode: \(item.reconstructionMode ?? "guided (older build)")
+            Last processing stage: \(item.lastProcessingStage ?? "not recorded by this build")
+            Capture finish confirmed: \(item.captureFinished)
             Saved images: \(imageCount(id))
+            Free disk bytes: \((try? folder(id).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage).map { String($0) } ?? "unknown")
             Message: \(item.message ?? "none")
+            Error details: \(item.lastErrorDetails ?? "not recorded; retry on this build for full details")
             Export: \(item.exportMessage ?? "not exported")
             No photographs or account credentials are included in this log.
 

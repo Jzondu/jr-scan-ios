@@ -177,6 +177,14 @@ struct ScanDetailView: View {
                             .disabled(store.busy || store.imageCount(id) == 0 || !PhotogrammetrySession.isSupported)
                         Text("Uses the supported iOS Reduced detail level. A retry starts a new request from saved input, not an arbitrary mid-session resume.")
                             .font(.footnote)
+                        if scan.stage == .failed || scan.stage == .interrupted || scan.stage == .cancelled {
+                            Button("Retry without object masking / checkpoints") {
+                                store.reconstruct(id, mode: .withoutMasking)
+                            }
+                            .disabled(store.busy || store.imageCount(id) == 0 || !PhotogrammetrySession.isSupported)
+                            Text("Uses the existing saved images. Preserves original inputs and checkpoints. May include background geometry. This is an alternate attempt, not a guaranteed fix.")
+                                .font(.footnote)
+                        }
                     }
                 }
                 if let model = store.model(id) {
