@@ -31,15 +31,15 @@ Standard macos-26-intel, X64, image macos26 20260824.0517.1; Xcode26.6(17F113), 
 
 geometry-tests.txt reports PASS for diagnostic field filtering; transforms/reflection/normals/topology/1000xunits; invalid OBJ rejection; USDZ import/export; crop/cleanup; new nonfinite-position regression/finite normals/last-valid patch retention/sanitized checkpoint+OBJ roundtrip; LiDAR buffers/indices/transforms/multi-anchor export/archive mutation/removal/recovery.
 
-No claim of a successful device fix. Build13 (0.4.0) was the previous compiled version; user's LiDAR test failed after4seconds with nonfinite vertex or normal, then user closed it. Savedimages0 is expected for LiDAR. Log cannot distinguish invalid positions from normals or prove the sensor's cause.
+Latest user reply: “Works” after the build18 install/new15–30second LiDAR capture/Finish & save request. Record this as user-reported success of that flow, not independent sensor measurements or confirmation of every feature. Build18 is the current working baseline. No repeat of that basic test is needed unless a new change or failure warrants it. Build13 (0.4.0) was the previous compiled version; user's LiDAR test failed after4seconds with nonfinite vertex or normal, then user closed it. Savedimages0 is expected for LiDAR. Log cannot distinguish invalid positions from normals or prove the sensor's cause.
 
 ## Nonfinite LiDAR fix in build18
 
 Old vectors() rejected any NaN/Infinity and ingest() paused the entire session for one bad update. New live path does not read ARKit normal buffers. sanitize() drops faces touching nonfinite positions and degenerates, compacts referenced vertices, derives finite normals and validates transforms. A wholly unusable update retains the previous valid patch. Per-anchor failures warn and continue other anchors. Warning counts appear in UI, sampled logs and save/close totals; fatal ARSession/storage errors still pause. Never zero-fill unknown positions or overwrite original scans.
 
-## Next human test (batch)
+## Remaining device validation
 
-Install build18 IN PLACE using the same AltStore account; do not uninstall. Keep existing scans. Start a NEW live LiDAR capture around a nearby static surface for15–30seconds, then Finish & save mesh and check a nonempty preview. If it works, crop surroundings/export OBJ/open on Windows and check saved geometry after relaunch. A short second capture with Close tests Recover saved LiDAR mesh. If any step fails, share that scan's diagnostic text and exact failing step; no full photo recapture needed. The old failed scan can Recover saved LiDAR mesh only if valid checkpoints exist; never-collected geometry cannot be recovered.
+Basic build18 LiDAR capture/save has user-reported success. No new task or test request was made in response to that confirmation. Crop/cleanup on a real mesh, OBJ opening on Windows, persistence after relaunch and interrupted-checkpoint recovery have not been separately confirmed. Batch those checks when relevant to the next requested change; do not infer they all passed from “Works”. Preserve existing scans and install future updates in place with the same AltStore account. The old failed scan can Recover saved LiDAR mesh only if valid checkpoints exist; never-collected geometry cannot be recovered.
 
 ## Runner failure resolved by alternative pool
 
