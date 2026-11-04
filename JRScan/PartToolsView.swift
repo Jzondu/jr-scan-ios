@@ -1,5 +1,6 @@
 import SwiftUI
 import simd
+import UIKit
 
 @MainActor
 final class PartTools: ObservableObject {
@@ -60,8 +61,9 @@ struct PartToolsView: View {
                               picked: points, onPick: picking ? { point in
                     if points.count == 2 { points = [] }
                     points.append(point)
-                } : nil)
+                } : nil, zUp: true)
                     .frame(height: 260).id("\(camera.rawValue)-\(mesh.revision)")
+                    .allowsHitTesting(!tools.working && !store.busy)
                 Picker("View", selection: $camera) {
                     ForEach(MeshCamera.allCases) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented).padding(.horizontal)
@@ -111,6 +113,7 @@ struct PartToolsView: View {
                         Text("Save here, then export OBJ or millimeter STL from the scan. Restore original remains available.").font(.footnote)
                     }
                 }.disabled(tools.working || store.busy)
+                    .scrollDismissesKeyboard(.interactively)
             }
             if tools.working || store.busy { ProgressView("Preparing part…").padding() }
             if let error = tools.error { Text(error).foregroundStyle(.red).padding() }
@@ -118,6 +121,12 @@ struct PartToolsView: View {
         .navigationTitle("Part tools")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(tools.working || store.busy)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+            }
+        }
         .task { await tools.load(source) }
     }
 

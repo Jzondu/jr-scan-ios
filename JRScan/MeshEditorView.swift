@@ -150,6 +150,7 @@ struct MeshSceneView: UIViewRepresentable {
     let camera: MeshCamera
     var picked: [SIMD3<Float>] = []
     var onPick: ((SIMD3<Float>) -> Void)? = nil
+    var zUp = false
     final class Coordinator: NSObject {
         var revision: UUID?
         var onPick: ((SIMD3<Float>) -> Void)?
@@ -178,18 +179,27 @@ struct MeshSceneView: UIViewRepresentable {
         cameraNode.camera = SCNCamera()
         let distance = max(reference.diagonal, 0.001)
         let center = reference.center
-        let offset: SIMD3<Float>
+        var offset: SIMD3<Float>
         switch camera {
         case .orbit: offset = SIMD3(1,0.8,1) * distance
         case .front: offset = SIMD3(0,0,2) * distance
         case .top: offset = SIMD3(0,2,0) * distance
         case .side: offset = SIMD3(2,0,0) * distance
         }
+        if zUp {
+            switch camera {
+            case .orbit: offset = SIMD3(1,-1,0.8) * distance
+            case .front: offset = SIMD3(0,-2,0) * distance
+            case .top: offset = SIMD3(0,0,2) * distance
+            case .side: offset = SIMD3(2,0,0) * distance
+            }
+        }
         cameraNode.simdPosition = center + offset
         cameraNode.camera?.zNear = Double(max(distance / 10_000, 0.000001))
         cameraNode.camera?.zFar = Double(max(distance * 100, 1))
-        cameraNode.look(at: SCNVector3(center.x,center.y,center.z),
-                        up: camera == .top ? SCNVector3(0,0,-1) : SCNVector3(0,1,0), localFront: SCNVector3(0,0,-1))
+        let up = zUp ? (camera == .top ? SCNVector3(0,1,0) : SCNVector3(0,0,1))
+                     : (camera == .top ? SCNVector3(0,0,-1) : SCNVector3(0,1,0))
+        cameraNode.look(at: SCNVector3(center.x,center.y,center.z), up: up, localFront: SCNVector3(0,0,-1))
         scene.rootNode.addChildNode(cameraNode)
         view.pointOfView = cameraNode
         view.defaultCameraController.target = SCNVector3(center.x,center.y,center.z)
@@ -211,8 +221,10 @@ struct MeshSceneView: UIViewRepresentable {
         if picked.count == 2 {
             let line = SCNGeometry(sources: [SCNGeometrySource(vertices: picked.map { SCNVector3($0.x,$0.y,$0.z) })],
                                    elements: [SCNGeometryElement(indices: [Int32(0),Int32(1)], primitiveType: .line)])
-            line.firstMaterial?.diffuse.contents = UIColor.systemOrange
-            line.firstMaterial?.lightingModel = .constant
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor.systemOrange
+            material.lightingModel = .constant
+            line.materials = [material]
             let node = SCNNode(geometry: line); node.name = "measurement"; node.categoryBitMask = 2
             root.addChildNode(node)
         }

@@ -3,6 +3,19 @@ import simd
 
 enum PartGeometryChecks {
     static func run(in directory: URL) throws {
+        let oldManifest = """
+        {"id":"00000000-0000-0000-0000-000000000001","name":"Saved part","created":0,"updated":0,"stage":"completed","captureFinished":true,"modelName":"part.obj","captureKind":"lidar"}
+        """
+        let old = try JSONDecoder().decode(ScanRecord.self, from: Data(oldManifest.utf8))
+        try GeometryChecks.require(old.modelName == "part.obj" && old.captureKind == "lidar" && old.passesStarted == nil && old.depthSummary == nil, "Old LiDAR manifest no longer decodes")
+        let photoManifest = oldManifest.replacingOccurrences(of: ",\"captureKind\":\"lidar\"", with: "")
+        let photo = try JSONDecoder().decode(ScanRecord.self, from: Data(photoManifest.utf8))
+        try GeometryChecks.require(photo.captureKind == nil, "Legacy photo scan no longer decodes")
+        var combined = photo
+        combined.captureKind = "combined"; combined.passesStarted = 3; combined.referenceScanID = old.id
+        let reloaded = try JSONDecoder().decode(ScanRecord.self, from: JSONEncoder().encode(combined))
+        try GeometryChecks.require(reloaded.passesStarted == 3 && reloaded.referenceScanID == old.id, "Combined scan metadata did not persist")
+        print("PASS: legacy photo/LiDAR manifests and combined scan metadata round trip")
         // Closed tetrahedron with consistent outward winding, 10 mm edges on axes.
         let mesh = EditableMesh(vertices: [SIMD3(0,0,0),SIMD3(0.01,0,0),SIMD3(0,0.01,0),SIMD3(0,0,0.01)],
             normals: Array(repeating: SIMD3(0,0,1), count: 4), indices: [0,2,1, 0,1,3, 0,3,2, 1,2,3])
@@ -41,6 +54,13 @@ enum PartGeometryChecks {
         try GeometryChecks.require(bytes.count == 284, "Binary STL size incorrect")
         let count = bytes.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: 80, as: UInt32.self)) }
         try GeometryChecks.require(count == 4, "STL triangle count incorrect")
+        var invalid = mesh
+        invalid.indices = [0,0,1]
+        do {
+            try PartGeometry.writeSTL(invalid, to: directory.appendingPathComponent("invalid.stl"))
+            throw ScanFailure.message("TEST FAILED: degenerate STL accepted")
+        } catch ScanFailure.message(let text) where !text.hasPrefix("TEST FAILED") {}
+        try GeometryChecks.require(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("invalid.stl").path), "Rejected STL was published")
         for face in 0..<4 {
             var points: [SIMD3<Float>] = []
             for corner in 0..<3 {
