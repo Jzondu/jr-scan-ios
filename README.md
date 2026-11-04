@@ -6,6 +6,8 @@ Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Sca
 
 **Version 0.4.0 (13)**: [download JRScan-unsigned-13](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600/artifacts/13137678171) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600).
 
+**Pending replacement: 0.4.1.** Build 13 hit a nonfinite LiDAR mesh update on the phone. The fix is committed, but compilation and regression checks have not run yet. [Build 17](https://github.com/Jzondu/jr-scan-ios/actions/runs/41873829763) is queued for a standard macOS runner as of November 4. Build 16 was cancelled before any steps ran; it has no compiler result or IPA. Build 13 above does **not** contain the fix. No Apple credentials or repository permission change is needed for the queued build.
+
 Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 
 - Build 3 (0.1.0) installed and opened on the user's iPhone; user reports iOS **27.0**. An initial “wrong format” report was followed by confirmation that installation/launch worked; its exact cause was not established.
@@ -48,7 +50,7 @@ For a failure, share diagnostic text **before recapturing**. New attempts record
 
 ## Live LiDAR surface scan (0.4.0)
 
-Build 13 passed synthetic checks for padded buffer offsets/strides, 16/32-bit indices, truncated/invalid input rejection, anchor-to-world transforms, reflected normals/winding, combined multi-anchor OBJ, binary checkpoint round trip, replacement/removal of updated anchors and recovery. These tests use generated data on the build Mac; real LiDAR capture and quality have not been phone-tested.
+Build 13 passed synthetic checks for padded buffer offsets/strides, 16/32-bit indices, truncated/invalid input rejection, anchor-to-world transforms, reflected normals/winding, combined multi-anchor OBJ, binary checkpoint round trip, replacement/removal of updated anchors and recovery. These tests use generated data on the build Mac. The subsequent phone test failed on a nonfinite mesh update; successful real LiDAR capture and quality remain unverified.
 
 Select **New live LiDAR scan** for a separate ARKit `sceneReconstruction = .mesh` path. It directly records ARKit's LiDAR-derived scene mesh; it does not invoke Object Capture or photo reconstruction. Existing **New object scan** remains available for photo detail. ARKit returns a processed surface estimate, not raw per-ray sensor samples. Hardware support and Camera permission are checked.
 

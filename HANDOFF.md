@@ -1,4 +1,4 @@
-# JR Scan handoff — 2026-11-02
+# JR Scan handoff — 2026-11-04
 
 ## Task and constraints
 
@@ -45,10 +45,18 @@ User supplied build13 log: LiDAR support true, about32GB free; scan F07EB6B7-592
 
 Committed c8346f6 (version0.4.1): live path no longer reads ARKit normal buffers; sanitize() drops faces touching nonfinite positions/degenerates, compacts referenced vertices, derives finite normals, validates transforms, and returns no replacement if a whole update is unusable. Per-anchor errors now warn/retain previous valid patch and continue other anchors. Warnings sampled in logs plus save/close totals and live UI counts; fatal ARSession/disk errors still pause. Regression fixture covers NaN/Infinity mixed with valid faces, generated normals, retaining previous patch, sanitized checkpoint/OBJ round trip.
 
-CI NOT verified yet at this handoff update: run14 ARM and15 Intel macOS26 were superseded while queued. Current single attempt run16 on standard macos-15-intel:
+Earlier attempts: run14 ARM and15 Intel macOS26 were superseded while queued. Run16 on standard macos-15-intel was subsequently cancelled before any steps ran:
 https://github.com/Jzondu/jr-scan-ios/actions/runs/41869324968
-Source c8346f6. Await runner, then inspect test/build result, fix actual failures, download artifact, independently verify IPA/checksum and update README evidence. No new IPA offered yet. Do not claim compilation or device fix success until evidence. README recovery section added; top build13 links remain previous verified build until replacement succeeds.
+Source c8346f6. This run produced no compiler result or IPA; use current run17 below. No new IPA offered yet. Do not claim compilation or device fix success until evidence. README recovery section added; top build13 links remain previous verified build until replacement succeeds.
 
 After replacement compiles: install IN PLACE, keep old scan, try short NEW live LiDAR capture and Finish/save. The old scan can Recover saved mesh if it contains valid checkpoints; never-collected geometry cannot be recovered. If new capture fails, its filtering warnings/counts plus diagnostic text should isolate what remains. Do not ask for another full photo capture.
 
-Build16 is blocked by an external GitHub Actions outage, not missing permissions. GitHub status summary API reported Actions partial_outage and active “Incident with Actions and Pages” (https://stspg.io/pjgptg3cfc6n). Run16 still queued with no assigned runner/steps when checked. Leave this attempt in place; do not churn more runners. Compilation/tests/IPA remain unverified. Resume by inspecting run41869324968 after service recovery; fix any compiler/test error and deliver its artifact only after evidence. Source and docs committed; no human credentials/action needed to start the already queued run.
+Earlier outage: build16 waited during an external GitHub Actions outage, not missing permissions. GitHub status summary API reported Actions partial_outage and active “Incident with Actions and Pages” (https://stspg.io/pjgptg3cfc6n). Run16 still queued with no assigned runner/steps when checked. Leave this attempt in place; do not churn more runners. Compilation/tests/IPA remain unverified. Resume by inspecting run41869324968 after service recovery; fix any compiler/test error and deliver its artifact only after evidence. Source and docs committed; no human credentials/action needed to start the already queued run.
+
+## Current CI retry — November 4
+
+User reported "build failed to run". Inspected run16: cancelled, steps empty; no compile/test failure to diagnose. GitHub status API now reports Actions operational with no active incidents. Repository Actions permissions enabled, allowed_actions all, current check run has no annotations/errors. Dispatched replacement run17 on standard macos-26:
+https://github.com/Jzondu/jr-scan-ios/actions/runs/41873829763
+Job126727786438, source48d73537e6cdc29792fb2d994f5faa3cf3331489, native fix stillc8346f6, version0.4.1. It remained queued with runner_name null and steps[] after about10minutes. Keep this attempt; no permission, credential or human dispatch action is required. Prior paragraph's request to resume run16 is superseded by this section.
+
+Next: inspect run17. When assigned, inspect tests/compiler output, fix actual failures if any, download IPA/log artifacts and independently verify checksum, ZIP, plist, arm64 and license. Then replace README's pending notice and latest verified build13 links, update handoff and batch the short in-place-install/new-LiDAR-capture phone test. No successful compilation/regression/device-fix claim yet. Documentation-only commits after48d7353 do not change the native source being built.
