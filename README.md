@@ -63,6 +63,14 @@ To bound memory and scan size, capture pauses at **250,000 triangles or 512 patc
 
 **One device test:** update in place, choose New live LiDAR scan, move slowly around a nearby static surface for about 15–30 seconds, then Finish & save. Confirm a nonempty aligned mesh in preview, crop some surroundings, export OBJ and open it on Windows. Force-close/reopen to check saved geometry; use a second short capture with Close to check Recover saved LiDAR mesh. If any step fails, send the exact error and scan diagnostic text; no full photo recapture is needed.
 
+### Nonfinite mesh update recovery (0.4.1)
+
+A build 13 device log reported `LiDAR returned a nonfinite vertex or normal` four seconds into capture, after which the user closed the scan. Support checks were true and free storage was about 32 GB. This exposed overly strict session-wide failure handling; the log does not distinguish invalid positions from invalid normals or prove why that update contained nonfinite data.
+
+Live capture now derives normals from valid triangle geometry instead of consuming ARKit's normal buffer. Faces touching nonfinite positions and degenerate faces are discarded; unused positions are compacted. No unknown coordinate is replaced with zero. An entirely unusable or malformed update keeps the previous valid patch, while other anchors continue updating. Warnings and filtering counts are shown/logged separately from fatal session or disk failures. Final save/close records a warning summary. Saved geometry still passes validation before publication/export.
+
+The regression fixture mixes valid triangles with NaN/Infinity positions and degenerate faces, checks finite generated normals, retains a prior valid patch on an all-bad update, and round-trips filtered geometry through checkpoints and OBJ. Phone confirmation remains required. Existing build 13 checkpoints can still be recovered if they contain valid patches; geometry never collected before that failure cannot be recreated from an empty checkpoint.
+
 ## Crop and mesh cleanup (0.3.0)
 
 Open an existing scan with a model and select **Crop & clean mesh**. No recapture or reconstruction is required.

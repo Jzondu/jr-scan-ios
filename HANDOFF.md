@@ -38,3 +38,15 @@ Install build13 IN PLACE (same identity/account; do not uninstall). New live LiD
 ## Tools/build
 
 Portable gh .tools/gh/bin/gh.exe. Git Credential Manager cached credential authorizes pushes/API/dispatch; retrieve only to process-local GH_TOKEN without printing/logging/persisting secrets or raw credential-fill. Workflow manual build-ios.yml, timeout25min, artifacts7days, standard runners only. CI runs generated fixtures only, never personal scan reconstruction. No local Xcode. Apple sample license remains bundled and in source. README has live scan/edit/install/build instructions and test evidence. Documentation-only changes do not trigger builds.
+
+## Nonfinite LiDAR failure follow-up (latest)
+
+User supplied build13 log: LiDAR support true, about32GB free; scan F07EB6B7-5923-4677-B5FE-82B541B4CD07 started then aborted after4seconds with “LiDAR returned a nonfinite vertex or normal.” User closed it; stagecancelled is not the original cause. Savedimages0 is expected for LiDAR. Old strict vectors() rejected any NaN/Infinity anywhere and ingest() paused the entire session for one bad update. Log cannot distinguish positions vs normals or establish why values were nonfinite.
+
+Committed c8346f6 (version0.4.1): live path no longer reads ARKit normal buffers; sanitize() drops faces touching nonfinite positions/degenerates, compacts referenced vertices, derives finite normals, validates transforms, and returns no replacement if a whole update is unusable. Per-anchor errors now warn/retain previous valid patch and continue other anchors. Warnings sampled in logs plus save/close totals and live UI counts; fatal ARSession/disk errors still pause. Regression fixture covers NaN/Infinity mixed with valid faces, generated normals, retaining previous patch, sanitized checkpoint/OBJ round trip.
+
+CI NOT verified yet at this handoff update: run14 ARM and15 Intel macOS26 were superseded while queued. Current single attempt run16 on standard macos-15-intel:
+https://github.com/Jzondu/jr-scan-ios/actions/runs/41869324968
+Source c8346f6. Await runner, then inspect test/build result, fix actual failures, download artifact, independently verify IPA/checksum and update README evidence. No new IPA offered yet. Do not claim compilation or device fix success until evidence. README recovery section added; top build13 links remain previous verified build until replacement succeeds.
+
+After replacement compiles: install IN PLACE, keep old scan, try short NEW live LiDAR capture and Finish/save. The old scan can Recover saved mesh if it contains valid checkpoints; never-collected geometry cannot be recovered. If new capture fails, its filtering warnings/counts plus diagnostic text should isolate what remains. Do not ask for another full photo capture.
