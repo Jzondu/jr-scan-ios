@@ -6,7 +6,7 @@ Native personal object scanner for iPhone 16 Pro. [Project specification](JR-Sca
 
 **Version 0.4.0 (13)**: [download JRScan-unsigned-13](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600/artifacts/13137678171) · [successful CI run](https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600).
 
-**Pending replacement: 0.4.1.** Build 13 hit a nonfinite LiDAR mesh update on the phone. The fix is committed, but compilation and regression checks have not run yet. [Build 17](https://github.com/Jzondu/jr-scan-ios/actions/runs/41873829763) is queued for a standard macOS runner as of November 4. Build 16 was cancelled before any steps ran; it has no compiler result or IPA. Build 13 above does **not** contain the fix. No Apple credentials or repository permission change is needed for the queued build.
+**Pending replacement: 0.4.1.** Build 13 hit a nonfinite LiDAR mesh update on the phone. The fix is committed, but compilation and regression checks have not run yet. Build 17 failed before any steps ran because GitHub could not allocate a hosted runner (internal server error). GitHub reported an [Actions incident](https://stspg.io/7pwv28hvkmz8). [Build 18](https://github.com/Jzondu/jr-scan-ios/actions/runs/41882505350) retries on the alternative standard macos-26-intel runner. Build 13 above does **not** contain the fix. No Apple credentials or repository permission change is needed for the queued build.
 
 Extract the outer artifact ZIP to obtain **JRScan.ipa**. Do not select the artifact ZIP in AltStore or rename the ZIP to IPA. Keep the IPA compressed; its internal Payload folder is for the installer. Artifacts expire after seven days; retain a known-good IPA locally.
 

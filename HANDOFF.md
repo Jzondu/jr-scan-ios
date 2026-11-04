@@ -60,3 +60,10 @@ https://github.com/Jzondu/jr-scan-ios/actions/runs/41873829763
 Job126727786438, source48d73537e6cdc29792fb2d994f5faa3cf3331489, native fix stillc8346f6, version0.4.1. It remained queued with runner_name null and steps[] after about10minutes. Keep this attempt; no permission, credential or human dispatch action is required. Prior paragraph's request to resume run16 is superseded by this section.
 
 Next: inspect run17. When assigned, inspect tests/compiler output, fix actual failures if any, download IPA/log artifacts and independently verify checksum, ZIP, plist, arm64 and license. Then replace README's pending notice and latest verified build13 links, update handoff and batch the short in-place-install/new-LiDAR-capture phone test. No successful compilation/regression/device-fix claim yet. Documentation-only commits after48d7353 do not change the native source being built.
+## Runner allocation failure and retry18 (supersedes prior queued17 state)
+
+User supplied GitHub error: Internal server error, correlation2b4ec308-76b0-4d21-b98e-836bb0507f4b; job not acquired by hosted runner after multiple attempts. API confirms run17 failure, job cancelled with steps[] at2026-11-04T17:19:02Z. This is runner allocation failure, not an application compile error. Actions status now partial_outage, incident h02n9572mx9y https://stspg.io/7pwv28hvkmz8. Latest status says event-trigger issue, mitigations applied, monitoring recovery and possible delayed job status updates. Do not assert the incident conclusively explains every allocation error.
+
+Dispatched run18 on alternative standard macos-26-intel, main sourcefefd5b1 (native source stillc8346f6), version0.4.1:
+https://github.com/Jzondu/jr-scan-ios/actions/runs/41882505350
+Queued at dispatch. No paid runner, credentials, or permission changes. Monitor this attempt after service recovery; do not repeatedly churn runners during the outage. All compile/regression/package verification remains pending. Run17 has no IPA. Use run18 rather than run17 for the next result/artifact inspection; then perform the verification and documentation steps above.
