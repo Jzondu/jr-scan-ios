@@ -157,3 +157,9 @@ Checked 29 October 2026. Recheck APIs, platform requirements, and service limits
 - Codex Cloud setup: https://learn.chatgpt.com/docs/cloud
 
 This brief is the handoff. No repository, Actions workflow, or app binary has been created by this planning task.
+
+## Subsequent scope decisions — 4 November 2026
+
+The planning status above is historical. JR Scan is implemented; the user reported working photo reconstruction and later working build 18 LiDAR capture/save. The user explicitly requested crop/cleanup, live LiDAR, then a combined mode and useful tools, clarifying that the primary use is objects and parts for 3D printing or modeling.
+
+Version 0.5.0 exposes Apple's existing photo-plus-LiDAR Object Capture pipeline as Combined detail, with three-height guidance and saved depth-sample inspection. It retains the iOS Reduced level and on-device limits; it does not claim custom mesh fusion, automatic alignment of independent scans, or a measured resolution improvement. The user-requested tools now include dimensions, surface-point measurement, uniform reference-length calibration, 90-degree orientation, Z-up bed placement, edge diagnostics and millimeter STL export. These supersede the corresponding original deferrals. Automatic hole filling, CAD/STEP generation, engineering-tolerance guarantees and cloud reconstruction remain outside the current implementation. README and HANDOFF record current build evidence and remaining device tests.
