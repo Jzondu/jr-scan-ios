@@ -120,6 +120,7 @@ final class ScanStore: ObservableObject {
             controller.onIssue = { [weak self] message in
                 self?.stage(id, .interrupted, message: message)
             }
+            controller.onWarning = { [weak self] message in self?.log(id, message) }
             activeID = id
             lidar = controller
             showLidar = true
@@ -133,6 +134,7 @@ final class ScanStore: ObservableObject {
         isExporting = true
         defer { isExporting = false }
         guard let mesh = await lidar.finish() else { return }
+        log(id, "LiDAR filtering summary: \(lidar.meshWarnings) warnings. \(lidar.lastMeshWarning ?? "No mesh warnings")")
         do {
             try await commitLidarMesh(id, mesh: mesh)
             closeLidar()
@@ -149,6 +151,7 @@ final class ScanStore: ObservableObject {
         isExporting = true
         defer { isExporting = false }
         let failure = await lidar.stopAndSave()
+        log(id, "LiDAR filtering summary at close: \(lidar.meshWarnings) warnings. \(lidar.lastMeshWarning ?? "No mesh warnings")")
         stage(id, failure == nil ? .cancelled : .interrupted,
               message: failure ?? "LiDAR capture closed. Recover the saved mesh from this scan; no tracking-session resume is promised.")
         closeLidar()

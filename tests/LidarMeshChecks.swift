@@ -33,6 +33,30 @@ enum LidarMeshChecks {
         let aID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let bID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
         let a = patch(id: aID, transform: aTransform), b = patch(id: bID, transform: bTransform)
+        // Device regression: one provisional bad position must not abort a scan
+        // or become a fabricated zero-coordinate vertex. ARKit normals aren't needed.
+        let dirtyVertices: [SIMD3<Float>] = [SIMD3(0,0,0),SIMD3(1,0,0),SIMD3(0,1,0),
+                                           SIMD3(.nan,0,0),SIMD3(0,.infinity,0)]
+        let sanitized = try LidarMeshAssembly.sanitize(id: aID, transform: a.transform,
+            vertices: dirtyVertices, indices: [0,1,2, 0,1,3, 1,2,4, 0,0,1])
+        try GeometryChecks.require(sanitized.removedFaces == 3 && sanitized.invalidVertices == 2,
+                                   "Nonfinite/degenerate LiDAR faces were not filtered")
+        guard let validPatch = sanitized.patch else { throw ScanFailure.message("TEST FAILED: valid LiDAR face discarded with bad neighbors") }
+        try GeometryChecks.require(validPatch.vertices.count == 3 && validPatch.indices == [0,1,2] &&
+            validPatch.normals.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z > 0.999 }, "Sanitized patch contains bad geometry/normals")
+        let allInvalid = try LidarMeshAssembly.sanitize(id: aID, transform: a.transform, vertices: dirtyVertices, indices: [0,1,3])
+        try GeometryChecks.require(allInvalid.patch == nil, "Entirely invalid update must not replace an earlier valid patch")
+        var live = [aID: validPatch]
+        if let update = allInvalid.patch { live[aID] = update }
+        try GeometryChecks.require(live[aID]?.revision == validPatch.revision, "Invalid update erased last valid LiDAR patch")
+        let cleanArchive = LidarArchive(directory: directory.appendingPathComponent("SanitizedLiDAR"))
+        try await cleanArchive.save([validPatch,b])
+        let recoveredClean = try await cleanArchive.load()
+        let cleanMesh = try LidarMeshAssembly.combine(recoveredClean)
+        let cleanedOutput = directory.appendingPathComponent("sanitized-lidar.obj")
+        try cleanMesh.writeOBJ(cleanedOutput)
+        try GeometryChecks.require(try OBJExporter.validate(cleanedOutput).triangles == 2, "Filtered LiDAR geometry could not be saved/recovered/exported")
+        print("PASS: device nonfinite-position regression, finite normal regeneration, last-valid patch retention and sanitized checkpoint/OBJ round trip")
         let combined = try LidarMeshAssembly.combine([b,a])
         try GeometryChecks.require(combined.triangleCount == 2 && combined.indices == [0,1,2,3,4,5], "LiDAR anchor combination failed to offset indices")
         try GeometryChecks.require(simd_length(combined.bounds.minimum - SIMD3(-1,0,0)) < 1e-6 &&

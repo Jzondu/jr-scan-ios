@@ -11,7 +11,7 @@ struct LidarMeshPatch: Codable, Sendable {
 }
 
 enum LidarMeshAssembly {
-    static func vectors(_ data: Data, count: Int, offset: Int, stride: Int) throws -> [SIMD3<Float>] {
+    static func vectors(_ data: Data, count: Int, offset: Int, stride: Int, requireFinite: Bool = true) throws -> [SIMD3<Float>] {
         guard count > 0, count <= 1_000_000, offset >= 0, stride >= 12, stride <= 4096,
               offset <= data.count, count <= (data.count-offset+stride-12)/stride else {
             throw ScanFailure.message("LiDAR vertex buffer is empty or truncated.")
@@ -22,10 +22,66 @@ enum LidarMeshAssembly {
                 let v = SIMD3(bytes.loadUnaligned(fromByteOffset: start, as: Float.self),
                               bytes.loadUnaligned(fromByteOffset: start+4, as: Float.self),
                               bytes.loadUnaligned(fromByteOffset: start+8, as: Float.self))
-                guard finite(v) else { throw ScanFailure.message("LiDAR returned a nonfinite vertex or normal.") }
+                guard !requireFinite || finite(v) else { throw ScanFailure.message("LiDAR returned a nonfinite vertex or normal.") }
                 return v
             }
         }
+    }
+
+    struct SanitizedPatch {
+        let patch: LidarMeshPatch?
+        let removedFaces: Int
+        let invalidVertices: Int
+    }
+
+    /// Filter faces before touching a renderer or archive. Do not replace unknown
+    /// positions with zero: that would invent spikes/geometry. Derive normals from
+    /// retained triangles rather than depending on provisional ARKit normal buffers.
+    static func sanitize(id: UUID, transform: [Float], vertices: [SIMD3<Float>], indices: [UInt32]) throws -> SanitizedPatch {
+        guard transform.count == 16, transform.allSatisfy(\.isFinite), indices.count.isMultiple(of: 3),
+              indices.allSatisfy({ Int($0) < vertices.count }) else {
+            throw ScanFailure.message("Invalid LiDAR transform or triangle indices; update skipped.")
+        }
+        let linear = simd_float3x3(SIMD3(transform[0],transform[1],transform[2]),
+                                  SIMD3(transform[4],transform[5],transform[6]), SIMD3(transform[8],transform[9],transform[10]))
+        let determinant = simd_determinant(linear)
+        guard determinant.isFinite, abs(determinant) > 1e-12 else {
+            throw ScanFailure.message("Singular LiDAR anchor transform; update skipped.")
+        }
+        var points: [SIMD3<Float>] = []
+        var faces: [UInt32] = []
+        var mapping: [UInt32: UInt32] = [:]
+        var removed = 0
+        for i in stride(from: 0, to: indices.count, by: 3) {
+            let ids = Array(indices[i..<(i+3)])
+            let p = ids.map { vertices[Int($0)] }
+            guard p.allSatisfy(finite), Set(ids).count == 3 else { removed += 1; continue }
+            let cross = simd_cross(p[1]-p[0],p[2]-p[0])
+            let length = simd_length(cross)
+            guard finite(cross), length.isFinite, length > 1e-15 else { removed += 1; continue }
+            for old in ids {
+                if let index = mapping[old] { faces.append(index) }
+                else {
+                    let index = UInt32(points.count)
+                    mapping[old] = index; points.append(vertices[Int(old)]); faces.append(index)
+                }
+            }
+        }
+        let invalid = vertices.filter { !finite($0) }.count
+        guard !faces.isEmpty else { return SanitizedPatch(patch: nil, removedFaces: removed, invalidVertices: invalid) }
+        var normals = Array(repeating: SIMD3<Float>.zero, count: points.count)
+        for i in stride(from: 0, to: faces.count, by: 3) {
+            let a = Int(faces[i]), b = Int(faces[i+1]), c = Int(faces[i+2])
+            let n = simd_normalize(simd_cross(points[b]-points[a], points[c]-points[a]))
+            normals[a] += n; normals[b] += n; normals[c] += n
+        }
+        normals = normals.map {
+            let length = simd_length($0)
+            return length.isFinite && length > 1e-15 ? $0/length : SIMD3(0,1,0)
+        }
+        return SanitizedPatch(patch: LidarMeshPatch(id: id, revision: UUID(), transform: transform,
+                                                   vertices: points, normals: normals, indices: faces),
+                              removedFaces: removed, invalidVertices: invalid)
     }
 
     static func indices(_ data: Data, faceCount: Int, bytesPerIndex: Int, vertexCount: Int) throws -> [UInt32] {

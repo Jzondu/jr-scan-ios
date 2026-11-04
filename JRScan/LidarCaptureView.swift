@@ -14,7 +14,10 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
     @Published var errorMessage: String?
     @Published var paused = false
     @Published var finishing = false
+    @Published var meshWarnings = 0
+    @Published var lastMeshWarning: String?
     var onIssue: ((String) -> Void)?
+    var onWarning: ((String) -> Void)?
     private var patches: [UUID: LidarMeshPatch] = [:]
     private weak var view: ARSCNView?
     private var started = false
@@ -121,9 +124,9 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
 
     private func ingest(_ anchors: [ARAnchor]) {
         guard collecting else { return }
-        do {
             for anchor in anchors {
                 guard let anchor = anchor as? ARMeshAnchor else { continue }
+                do {
                 let geometry = anchor.geometry
                 let previousFaces = (patches[anchor.identifier]?.indices.count ?? 0)/3
                 if geometry.faces.count == 0 || geometry.vertices.count == 0 {
@@ -137,24 +140,40 @@ final class LidarCapture: NSObject, ObservableObject, ARSessionDelegate {
                     pause(reason: "Reached the local scan size limit (250,000 triangles / 512 patches).")
                     break
                 }
-                guard geometry.vertices.format == .float3, geometry.normals.format == .float3,
+                guard geometry.vertices.format == .float3,
                       geometry.faces.indexCountPerPrimitive == 3 else {
                     throw ScanFailure.message("Unsupported ARKit mesh buffer format.")
                 }
                 let vertices = try LidarMeshAssembly.vectors(Data(bytes: geometry.vertices.buffer.contents(), count: geometry.vertices.buffer.length),
-                                                           count: geometry.vertices.count, offset: geometry.vertices.offset, stride: geometry.vertices.stride)
-                let normals = try LidarMeshAssembly.vectors(Data(bytes: geometry.normals.buffer.contents(), count: geometry.normals.buffer.length),
-                                                          count: geometry.normals.count, offset: geometry.normals.offset, stride: geometry.normals.stride)
+                                                           count: geometry.vertices.count, offset: geometry.vertices.offset, stride: geometry.vertices.stride, requireFinite: false)
                 let indices = try LidarMeshAssembly.indices(Data(bytes: geometry.faces.buffer.contents(), count: geometry.faces.buffer.length),
                                                            faceCount: geometry.faces.count, bytesPerIndex: geometry.faces.bytesPerIndex, vertexCount: vertices.count)
-                let patch = LidarMeshPatch(id: anchor.identifier, revision: UUID(),
-                                          transform: LidarMeshAssembly.matrixValues(anchor.transform), vertices: vertices, normals: normals, indices: indices)
+                let sanitized = try LidarMeshAssembly.sanitize(id: anchor.identifier,
+                    transform: LidarMeshAssembly.matrixValues(anchor.transform), vertices: vertices, indices: indices)
+                if sanitized.removedFaces > 0 || sanitized.invalidVertices > 0 {
+                    warn("Filtered LiDAR update: \(sanitized.invalidVertices) invalid positions, \(sanitized.removedFaces) unusable faces. Normals regenerated.")
+                }
+                guard let patch = sanitized.patch else {
+                    if sanitized.removedFaces == 0 { warn("LiDAR update had no usable faces; previous patch retained.") }
+                    continue
+                }
                 patches[patch.id] = patch
-                triangleCount = triangleCount-previousFaces+geometry.faces.count
+                triangleCount = triangleCount-previousFaces+patch.indices.count/3
                 draw(patch, transform: anchor.transform)
+                } catch {
+                    warn("Skipped LiDAR patch update; previous valid patch retained: \(error.localizedDescription)")
+                }
             }
             patchCount = patches.count
-        } catch { issue("LiDAR mesh update failed: \(error.localizedDescription)") }
+    }
+
+    private func warn(_ message: String) {
+        meshWarnings += 1
+        lastMeshWarning = message
+        // Log first few events and powers of two to retain evidence without per-frame spam.
+        if meshWarnings <= 3 || (meshWarnings & (meshWarnings-1)) == 0 {
+            onWarning?("Mesh warning \(meshWarnings): \(message)")
+        }
     }
 
     private func draw(_ patch: LidarMeshPatch, transform: simd_float4x4) {
@@ -239,6 +258,10 @@ struct LidarCaptureScreen: View {
             Text(capture.tracking).font(.callout).padding(.horizontal)
             Text("\(capture.triangleCount) triangles • \(capture.patchCount) patches")
             Text("Checkpoint saved: \(capture.savedTriangles) triangles").font(.caption)
+            if capture.meshWarnings > 0 {
+                Text("\(capture.meshWarnings) mesh updates needed filtering. Capture continues; inspect coverage before saving.")
+                    .font(.caption).foregroundStyle(.orange)
+            }
             Text("Scan nearby surfaces slowly from several angles. LiDAR is coarse for small objects; crop unwanted surroundings after saving. Geometry only, no photo texture.")
                 .font(.footnote).padding(.horizontal)
             if let error = capture.errorMessage { Text(error).foregroundStyle(.orange).font(.footnote).padding(.horizontal) }
