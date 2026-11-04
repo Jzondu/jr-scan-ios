@@ -148,7 +148,19 @@ struct MeshSceneView: UIViewRepresentable {
     let reference: MeshBounds
     let crop: MeshBounds?
     let camera: MeshCamera
-    final class Coordinator { var revision: UUID? }
+    var picked: [SIMD3<Float>] = []
+    var onPick: ((SIMD3<Float>) -> Void)? = nil
+    final class Coordinator: NSObject {
+        var revision: UUID?
+        var onPick: ((SIMD3<Float>) -> Void)?
+        @objc func tap(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? SCNView, let onPick,
+                  let hit = view.hitTest(gesture.location(in: view), options: [.categoryBitMask: 1]).first,
+                  hit.node.name == "mesh" else { return }
+            let p = hit.worldCoordinates
+            onPick(SIMD3(p.x,p.y,p.z))
+        }
+    }
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SCNView {
@@ -159,6 +171,9 @@ struct MeshSceneView: UIViewRepresentable {
         view.autoenablesDefaultLighting = true
         view.allowsCameraControl = true
         view.antialiasingMode = .multisampling4X
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:)))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         let distance = max(reference.diagonal, 0.001)
@@ -184,6 +199,23 @@ struct MeshSceneView: UIViewRepresentable {
 
     func updateUIView(_ view: SCNView, context: Context) {
         guard let root = view.scene?.rootNode else { return }
+        context.coordinator.onPick = onPick
+        root.childNodes.filter { $0.name == "measurement" }.forEach { $0.removeFromParentNode() }
+        for point in picked {
+            let marker = SCNNode(geometry: SCNSphere(radius: CGFloat(max(reference.diagonal * 0.008, 0.0001))))
+            marker.name = "measurement"; marker.categoryBitMask = 2
+            marker.simdPosition = point
+            marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemOrange
+            root.addChildNode(marker)
+        }
+        if picked.count == 2 {
+            let line = SCNGeometry(sources: [SCNGeometrySource(vertices: picked.map { SCNVector3($0.x,$0.y,$0.z) })],
+                                   elements: [SCNGeometryElement(indices: [Int32(0),Int32(1)], primitiveType: .line)])
+            line.firstMaterial?.diffuse.contents = UIColor.systemOrange
+            line.firstMaterial?.lightingModel = .constant
+            let node = SCNNode(geometry: line); node.name = "measurement"; node.categoryBitMask = 2
+            root.addChildNode(node)
+        }
         root.childNode(withName: "crop", recursively: false)?.removeFromParentNode()
         if context.coordinator.revision != mesh.revision {
         root.childNode(withName: "mesh", recursively: false)?.removeFromParentNode()

@@ -27,7 +27,7 @@ jobs:
           set -o pipefail
           mkdir -p build/logs
           python3 tests/make_usdz_fixture.py
-          xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift JRScan/MeshEditing.swift JRScan/LidarMesh.swift tests/GeometryChecks.swift tests/MeshEditingChecks.swift tests/LidarMeshChecks.swift -o build/geometry-checks
+          xcrun --sdk macosx swiftc JRScan/OBJExporter.swift JRScan/ReconstructionFailure.swift JRScan/MeshEditing.swift JRScan/LidarMesh.swift JRScan/PartGeometry.swift tests/PartGeometryChecks.swift tests/GeometryChecks.swift tests/MeshEditingChecks.swift tests/LidarMeshChecks.swift -o build/geometry-checks
           build/geometry-checks build/geometry-fixture.usdz | tee build/logs/geometry-tests.txt
       - name: Build and package device IPA (no signing)
         run: bash scripts/build-ipa.sh

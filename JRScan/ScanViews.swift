@@ -15,11 +15,11 @@ struct ScanListView: View {
         NavigationStack {
             List {
                 Section {
-                    Button("New object scan", systemImage: "camera") { Task { await store.newCapture() } }
+                    Button("Combined detail scan — photos + LiDAR", systemImage: "camera") { Task { await store.newCapture() } }
                         .disabled(store.busy || !ObjectCaptureSession.isSupported || !PhotogrammetrySession.isSupported)
                     Button("New live LiDAR scan", systemImage: "viewfinder") { Task { await store.newLidarCapture() } }
                         .disabled(store.busy || !ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh))
-                    Text("Object scan uses photos for detail. Live LiDAR captures a coarse nearby surface mesh directly; crop the surroundings afterward.").font(.footnote)
+                    Text("Combined detail uses Apple’s guided photos + LiDAR capture for objects and parts. Live LiDAR is the faster, coarser surface mode. Existing LiDAR meshes cannot gain missing detail without a new capture.").font(.footnote)
                     if !ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
                         Text("Live LiDAR mesh capture is unavailable on this device.").font(.footnote)
                     }
@@ -35,7 +35,7 @@ struct ScanListView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(scan.name)
-                            Text("\(scan.captureKind == "lidar" ? "LiDAR" : "Photo") • \(scan.stage.rawValue.capitalized) • \(scan.created.formatted(date: .abbreviated, time: .shortened))")
+                            Text("\(scan.captureKind == "lidar" ? "LiDAR" : (scan.captureKind == "combined" ? "Combined" : "Object Capture")) • \(scan.stage.rawValue.capitalized) • \(scan.created.formatted(date: .abbreviated, time: .shortened))")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -70,17 +70,21 @@ struct CaptureScreen: View {
     let session: ObjectCaptureSession
     @State private var showCancel = false
     @State private var detectionMessage: String?
+    @State private var showEarlyFinish = false
+    private var pass: Int { store.activeID.flatMap { store.record($0)?.passesStarted } ?? 1 }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Guided object capture").font(.headline)
+                Text("Combined detail capture").font(.headline)
                 Spacer()
                 Button("Cancel") { showCancel = true }
             }.padding()
             ObjectCaptureView(session: session)
             VStack(spacing: 10) {
                 Text(instruction).font(.headline)
+                Text("Pass \(pass) of 3 recommended: \(pass == 1 ? "middle height" : pass == 2 ? "higher angle" : "lower angle"). Keep the part stationary.").font(.caption)
+                Text("Photos supply fine detail; LiDAR supports shape and scale. Use even light, sharp views and overlapping coverage.").font(.caption)
                 Text("Images: \(session.numberOfShotsTaken) / \(session.maximumNumberOfInputImages)")
                 ForEach(session.feedback.map(feedback).sorted(), id: \.self) { message in
                     Text(message).font(.callout).foregroundStyle(.orange)
@@ -100,12 +104,14 @@ struct CaptureScreen: View {
                     if session.isPaused { Button("Resume capture") { session.resume() } }
                     HStack {
                         Button("Take image") { session.requestImageCapture() }.disabled(!session.canRequestImageCapture)
-                        Button("Finish & save") { session.finish() }.buttonStyle(.borderedProminent)
+                        Button("Finish & save") {
+                            if pass < 3 { showEarlyFinish = true } else { session.finish() }
+                        }.buttonStyle(.borderedProminent)
                             .disabled(session.numberOfShotsTaken == 0)
                     }
                     if session.userCompletedScanPass {
-                        Text("Pass complete. Capture a second angle before finishing when practical.").font(.caption)
-                        Button("New pass at another height") { session.beginNewScanPass() }
+                        Text(pass < 3 ? "Pass complete. Move to the next height for more coverage." : "Three heights started. Finish this coverage dial, then save and reconstruct.").font(.caption)
+                        Button("New pass at another height") { store.nextCapturePass() }
                     }
                 case .initializing, .finishing: ProgressView()
                 default: EmptyView()
@@ -113,6 +119,10 @@ struct CaptureScreen: View {
             }.padding()
         }
         .interactiveDismissDisabled()
+        .confirmationDialog("Finish before three heights? Extra angles can improve coverage, but the device image limit still applies.", isPresented: $showEarlyFinish, titleVisibility: .visible) {
+            Button("Finish with current inputs") { session.finish() }
+            Button("Keep capturing", role: .cancel) {}
+        }
         .confirmationDialog("Cancel capture? Saved images will be retained, but a partial capture may not reconstruct.", isPresented: $showCancel, titleVisibility: .visible) {
             Button("Cancel capture", role: .destructive) { store.cancelCapture() }
         }
@@ -170,8 +180,17 @@ struct ScanDetailView: View {
                     Button("Save name") { store.rename(id, name: name) }.disabled(store.busy)
                     Text(scan.created.formatted(date: .complete, time: .shortened))
                     Text("State: \(scan.stage.rawValue.capitalized)")
-                    Text("Capture: \(store.isLidar(id) ? "Live LiDAR mesh" : "Photo / Object Capture")")
-                    if !store.isLidar(id) { Text("Saved input images: \(store.imageCount(id))") }
+                    Text("Capture: \(store.isLidar(id) ? "Live LiDAR mesh" : "Photos + LiDAR / Object Capture")")
+                    if !store.isLidar(id) {
+                        Text("Saved input images: \(store.imageCount(id))")
+                        if let passes = scan.passesStarted { Text("Capture passes started: \(passes)") }
+                        if let depth = scan.depthSummary { Text(depth).font(.footnote) }
+                        else { Text("Saved depth data will be checked when reconstruction starts.").font(.footnote) }
+                    }
+                    if let referenceID = scan.referenceScanID, store.record(referenceID) != nil {
+                        NavigationLink("Open original LiDAR reference") { ScanDetailView(store: store, id: referenceID) }
+                        Text("Separate capture coordinates. Models are retained independently, not automatically aligned or merged.").font(.footnote)
+                    }
                     if let message = scan.message { Text(message).foregroundStyle(.orange) }
                     Text(id.uuidString).font(.caption).textSelection(.enabled)
                 }
@@ -179,6 +198,9 @@ struct ScanDetailView: View {
                     Section("Saved LiDAR input") {
                         Button("Recover saved LiDAR mesh") { Task { await store.recoverLidarMesh(id) } }
                             .disabled(store.busy || !store.hasLidarCheckpoint(id))
+                        Button("Capture finer detail — photos + LiDAR") { Task { await store.newCapture(referenceScanID: id) } }
+                            .disabled(store.busy || !ObjectCaptureSession.isSupported || !PhotogrammetrySession.isSupported)
+                        Text("Starts a new guided capture of the same stationary part. Keeps this LiDAR scan as a reference; it does not sharpen the existing mesh.").font(.footnote)
                         Text("Recovers checkpointed mesh patches locally. No photo reconstruction or live tracking-session resume is required.").font(.footnote)
                         if store.isExporting { ProgressView("Preparing geometry…") }
                     }
@@ -209,6 +231,8 @@ struct ScanDetailView: View {
                 if let model = store.model(id) {
                     Section("Model and geometry export") {
                         if let source = store.geometrySource(id) {
+                            NavigationLink("Part tools — measure, calibrate, orient") { PartToolsView(store: store, scanID: id, source: source) }
+                                .disabled(store.busy)
                             NavigationLink("Crop & clean mesh") { MeshEditorView(store: store, scanID: id, source: source) }
                                 .disabled(store.busy)
                         }
@@ -230,6 +254,10 @@ struct ScanDetailView: View {
                         Button(store.editedModel(id) == nil ? "Export geometry OBJ…" : "Export edited geometry OBJ…") {
                             Task { if let urls = await store.export(id, units: units) { share = FileSelection(urls: urls) } }
                         }.disabled(store.busy)
+                        Button("Export STL for printing (millimeters)…") {
+                            Task { if let urls = await store.exportSTL(id) { share = FileSelection(urls: urls) } }
+                        }.disabled(store.busy)
+                        Text("STL uses the current saved geometry. Holes stay open; inspect the included edge report and your slicer preview.").font(.footnote)
                         if store.isExporting { ProgressView("Converting geometry…") }
                         if let message = scan.exportMessage { Text(message) }
                         Text("Millimeter coordinates are multiplied by 1000. OBJ has no standard unit declaration; use the included export note. This is not a metrology-grade measurement. Texture export is deferred.")

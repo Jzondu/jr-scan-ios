@@ -31,7 +31,7 @@ If AltStore reports an invalid format, confirm the selected file is the extracte
 
 ## Scan and export
 
-1. Open **New object scan**, allow Camera, and aim at a stationary matte textured object in even light. Start around 10–30 cm across for a forgiving first test.
+1. Open **Combined detail scan — photos + LiDAR**, allow Camera, and aim at a stationary matte textured object in even light. Start around 10–30 cm across for a forgiving first test.
 2. Select **Detect object**, adjust the bounds, then **Start capture**. Move slowly around the object; follow Apple's camera view, coverage dial and quality feedback. Automatic capture is enabled; manual **Take image** is also available. When a pass completes, select **New pass at another height** as practical. Keep the object stationary; an object-flip workflow is not part of this first version.
 3. Choose **Finish & save**. Wait for the framework to finish saving input before returning to the scan list. Cancellation keeps already-written inputs, though partial captures may not reconstruct.
 4. Open the saved scan and choose **Reconstruct saved input**. This runs **on the iPhone**, using the supported iOS **Reduced** level, with actual framework progress. **Keep JR Scan in the foreground.** Backgrounding cancels processing and records interruption. A retry starts a new request from saved input/checkpoints; arbitrary mid-session resume is not promised. Each attempt writes a new USDZ without replacing earlier outputs.
@@ -53,7 +53,7 @@ For a failure, share diagnostic text **before recapturing**. New attempts record
 
 Build 13 passed synthetic checks for padded buffer offsets/strides, 16/32-bit indices, truncated/invalid input rejection, anchor-to-world transforms, reflected normals/winding, combined multi-anchor OBJ, binary checkpoint round trip, replacement/removal of updated anchors and recovery. These tests use generated data on the build Mac. The subsequent phone test failed on a nonfinite mesh update; build 18 subsequently received user-reported success for the short capture/save flow. Mesh quality has not been independently measured.
 
-Select **New live LiDAR scan** for a separate ARKit `sceneReconstruction = .mesh` path. It directly records ARKit's LiDAR-derived scene mesh; it does not invoke Object Capture or photo reconstruction. Existing **New object scan** remains available for photo detail. ARKit returns a processed surface estimate, not raw per-ray sensor samples. Hardware support and Camera permission are checked.
+Select **New live LiDAR scan** for a separate ARKit `sceneReconstruction = .mesh` path. It directly records ARKit's LiDAR-derived scene mesh; it does not invoke Object Capture or photo reconstruction. Use **Combined detail scan — photos + LiDAR** for guided object detail. ARKit returns a processed surface estimate, not raw per-ray sensor samples. Hardware support and Camera permission are checked.
 
 1. Aim at nearby static surfaces and move slowly around them from several angles. The camera view overlays the current mesh in teal wireframe. Watch the tracking message and triangle/patch counts. LiDAR captures surroundings too; it is coarse for small-object detail and does not promise engineering accuracy.
 2. Checkpoints save approximately every two seconds. **Finish & save mesh** stops capture, flushes current patches, applies every anchor's world transform and index offsets, removes duplicate/degenerate geometry, and saves a validated meter OBJ. It keeps all disconnected pieces by default; choose what to remove afterward in Crop & clean mesh.
@@ -137,3 +137,25 @@ Capture/reconstruction sequencing and guidance were adapted with reference to Ap
 - [GitHub runner software](https://github.com/actions/runner-images)
 - [AltStore Windows guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows)
 - [AltStore errors](https://faq.altstore.io/altstore-classic/error-codes)
+
+
+## Combined detail and part tools (0.5.0)
+
+For objects and parts intended for modeling or 3D printing, **Combined detail scan — photos + LiDAR** uses Apple's Object Capture pipeline. That pipeline already captures photos and LiDAR; this release makes it explicit, adds middle/high/low pass guidance and records pass count. It is not a new custom fusion engine or a higher iOS reconstruction setting. On-device `.reduced` and the framework's image limit remain in effect. Compared with live LiDAR's coarse scene mesh, photos can recover finer surface features; actual improvement depends on the object and capture. More triangles alone do not demonstrate more detail.
+
+Use a stationary matte part in diffuse light, fill the coverage dial at three heights, Finish & save, then open the new scan and Reconstruct saved input. Existing masking-free retry is available on failure. Reconstruction checks up to 12 saved photos using `PhotogrammetrySample` and reports how many expose depth data; absence or unreadable samples is reported honestly. All original photos/checkpoints are kept. Starting **Capture finer detail** from a LiDAR scan creates a separate combined scan linked to that reference: no automatic alignment/merging of independent coordinate systems.
+
+Apple references: [guided photo/LiDAR capture and on-device limits](https://developer.apple.com/videos/play/wwdc2023/10191/), [saved sample depth data](https://developer.apple.com/documentation/realitykit/photogrammetrysample/depthdatamap).
+
+After reconstructing (or on an existing LiDAR model), open **Part tools — measure, calibrate, orient**:
+
+- Inspect X/Y/Z bounding dimensions in mm. Crop background first; these are axis-aligned extents.
+- Enable Pick two surface points, tap visible surfaces, and read their straight-line distance. This is not a surface-following distance.
+- Enter the same feature's known caliper/ruler length in mm and apply uniform calibration. Alternatively calibrate an X/Y/Z extent. This corrects overall scale, not shape distortion or guaranteed fit.
+- Rotate around X/Y/Z in 90-degree steps; center XY and put the lowest point at Z=0 for slicers. This translates/rotates geometry; it does not flatten or cap the base.
+- Inspect open edges, non-manifold edges, winding conflicts and degenerate faces. Exact positional seams are matched; self-intersections and overall printability are not certified.
+- Save part geometry as a separate revision. Reset discards unsaved transforms. The original remains available and Restore original switches exports back to it.
+
+**Export STL for printing (millimeters)** exports the current saved geometry as binary STL with face normals and a companion inspection note. STL does not encode units; set your slicer to mm. OBJ export still supports meters/mm. Open meshes may be exported, but invalid/degenerate triangles are rejected with a cleanup suggestion. Inspect the model and repair openings in your slicer/modeling tool as needed; no automatic hole filling or engineering tolerance is promised.
+
+Validation for 0.5.0 is pending CI and phone checks until the current-build section is updated. Synthetic tests cover scale, rotation, bed placement, edge topology and binary STL layout/units/normals. One combined phone check: capture a known-size matte part, reconstruct, pick a known feature, calibrate, save, export STL, and verify size/orientation in the Windows slicer. Reopen the scan to check persistence. No photographs or credentials are sent to CI.

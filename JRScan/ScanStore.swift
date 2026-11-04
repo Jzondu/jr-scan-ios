@@ -25,6 +25,9 @@ struct ScanRecord: Codable, Identifiable {
     var lastErrorDetails: String?
     var editedModelName: String?
     var editSummary: String?
+    var passesStarted: Int?
+    var depthSummary: String?
+    var referenceScanID: UUID?
     var captureKind: String? // nil = existing photo/Object Capture scan.
 }
 
@@ -295,7 +298,7 @@ final class ScanStore: ObservableObject {
         }
     }
 
-    func newCapture() async {
+    func newCapture(referenceScanID: UUID? = nil) async {
         guard !busy else { return }
         isStarting = true
         defer { isStarting = false }
@@ -315,8 +318,11 @@ final class ScanStore: ObservableObject {
             for name in ["Images","Checkpoints","Models","Exports"] {
                 try FileManager.default.createDirectory(at: directory.appendingPathComponent(name), withIntermediateDirectories: true)
             }
-            let item = ScanRecord(id: id, name: "Scan \(Date().formatted(date: .abbreviated, time: .shortened))",
+            var item = ScanRecord(id: id, name: "Combined \(Date().formatted(date: .abbreviated, time: .shortened))",
                                   created: Date(), updated: Date(), stage: .capturing)
+            item.captureKind = "combined"
+            item.passesStarted = 1
+            item.referenceScanID = referenceScanID
             try write(item)
             scans.insert(item, at: 0)
             activeID = id
@@ -328,7 +334,7 @@ final class ScanStore: ObservableObject {
             capture = session
             showCapture = true
             UIApplication.shared.isIdleTimerDisabled = true
-            log(id, "Capture started")
+            log(id, "Combined detail capture started: Apple Object Capture photos + LiDAR; three-height guidance, on-device image limit retained")
             captureTask = Task { [weak self] in
                 for await state in session.stateUpdates {
                     guard let self, !Task.isCancelled else { return }
@@ -354,6 +360,13 @@ final class ScanStore: ObservableObject {
             closeCapture()
             self.error = "Could not start capture: \(error.localizedDescription)"
         }
+    }
+
+    func nextCapturePass() {
+        guard let session = capture, let id = activeID, session.userCompletedScanPass else { return }
+        session.beginNewScanPass()
+        do { try update(id) { $0.passesStarted = ($0.passesStarted ?? 1) + 1 } }
+        catch { self.error = error.localizedDescription }
     }
 
     func cancelCapture() {
@@ -387,6 +400,12 @@ final class ScanStore: ObservableObject {
             do {
                 try checkSpace()
                 guard imageCount(id) > 0 else { throw ScanFailure.message("There are no saved input images to reconstruct.") }
+                processingStage = "Checking saved photo + depth input"
+                let input = try images(id)
+                let audit = try await CombinedCapture.audit(input)
+                try update(id) { $0.depthSummary = audit }
+                log(id, audit)
+                if isCancelling || stopReason != nil { throw CancellationError() }
                 let fileName = "model-\(UUID().uuidString).usdz"
                 let output = try folder(id).appendingPathComponent("Models").appendingPathComponent(fileName)
                 // Preserve every earlier output; a retry writes a new file, never overwrites a good model.
@@ -541,6 +560,35 @@ final class ScanStore: ObservableObject {
         }
     }
 
+    func exportSTL(_ id: UUID) async -> [URL]? {
+        guard !busy, let source = geometrySource(id) else { return nil }
+        isExporting = true
+        defer { isExporting = false }
+        do {
+            try checkSpace()
+            let directory = try folder(id).appendingPathComponent("Exports/stl-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let output = directory.appendingPathComponent("JRScan-\(id.uuidString)-millimeters.stl")
+            let report = try await Task.detached(priority: .userInitiated) {
+                let mesh = try EditableMesh.load(source)
+                let report = try PartGeometry.report(mesh)
+                try PartGeometry.writeSTL(mesh, to: output)
+                return report
+            }.value
+            let note = directory.appendingPathComponent("STL-millimeters.txt")
+            try ("JR Scan binary STL. Coordinates in millimeters (internal meters ×1000). No textures.\n" +
+                 "Source: \(source.lastPathComponent)\nEdits: \(record(id)?.editSummary ?? "none")\n" +
+                 report.text + "\nSTL does not encode units. Set slicer units to mm. Inspect holes, orientation and size in your slicer; export is not printability certification.")
+                .write(to: note, atomically: true, encoding: .utf8)
+            try update(id) { $0.exportMessage = "Millimeter STL exported. " + report.text }
+            log(id, "Exported millimeter STL; " + report.text)
+            return [output,note]
+        } catch {
+            self.error = "STL export failed: \(error.localizedDescription). Original geometry retained."
+            return nil
+        }
+    }
+
     func rename(_ id: UUID, name: String) {
         let name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120))
         guard !name.isEmpty else { return }
@@ -576,6 +624,8 @@ final class ScanStore: ObservableObject {
             Last processing stage: \(item.lastProcessingStage ?? "not recorded by this build")
             Capture finish confirmed: \(item.captureFinished)
             Saved images: \(imageCount(id))
+            Passes started: \(item.passesStarted.map(String.init) ?? "not recorded")
+            Depth check: \(item.depthSummary ?? "not checked yet")
             Free disk bytes: \((try? folder(id).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage).map { String($0) } ?? "unknown")
             Message: \(item.message ?? "none")
             Error details: \(item.lastErrorDetails ?? "not recorded; retry on this build for full details")

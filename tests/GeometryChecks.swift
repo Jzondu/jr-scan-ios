@@ -72,6 +72,7 @@ struct GeometryChecks {
         print("PASS: USDZ -> geometry OBJ import/export")
         try MeshEditingChecks.run(in: directory)
         try await LidarMeshChecks.run(in: directory)
+        try PartGeometryChecks.run(in: directory)
     }
 
     static func fixture() -> MDLMesh {
