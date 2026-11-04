@@ -20,50 +20,31 @@ RawLiDAR binary plist patch revisions + atomic index checkpoint about every2seco
 
 Existing crop editor saves immutable meter OBJ edit revisions, preserves original model, supports restore, precise six-plane clipping and loose-component policies; no hole caps/smoothing/texture editing/arbitrary winding repair. New original publication clears active edit pointer but retains prior files. Manifest captureKind is optional for old photo records. LiDAR modelName is OBJ; photo modelName remains USDZ. UI preview/share correctly handles both.
 
-## Latest verified build
+## Latest verified build — 0.4.1 (18)
 
-Version **0.4.0 (13)**; compiled source ed6f86fd57ff2c8ac009288ac9bc263a286a01a1.
-SUCCESSFUL run https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600
-Artifact https://github.com/Jzondu/jr-scan-ios/actions/runs/41439428600/artifacts/13137678171 (JRScan-unsigned-13; extract outer ZIP for JRScan.ipa).
-Local IPA build/downloads/run-13/JRScan.ipa; logs build/downloads/run-13/logs.
-SHA-256 290a546a76d475d8d0ed290f4bf2e11d45a922dc7dd659eb7d96ff29dc7c4e71 independently matches CI.
-Standard macos-26, ARM64, image macos26 20261026.0455.2, Xcode26.6(17F113), iOS SDK26.5, XcodeGen2.44.1; minimum iOS18. Native device compilation/package passed.
-All synthetic tests PASS: prior transforms/reflections/normals/1000xunits/USDZ/diagnostic filtering/crop/cleanup, plus LiDAR buffers,16/32bitindices, transforms, combinedOBJ, checkpointroundtrip, anchormutation/removal and recovery.
-LiDAR sensor access/overlay/quality/recovery and real edited exports are NOT phone-tested. No known-good LiDAR tag. Runs11–12 superseded while standard macos15Intel/ARM queued; run13 on macos26 succeeded. Workflow default now macos26 (same runner actually tested in run13), alternatives26Intel/15/15Intel, standard only. No new binary build needed for documentation/default-choice-only changes.
+SUCCESSFUL run https://github.com/Jzondu/jr-scan-ios/actions/runs/41882505350
+Artifact https://github.com/Jzondu/jr-scan-ios/actions/runs/41882505350/artifacts/13350486080 (JRScan-unsigned-18; extract outer ZIP for JRScan.ipa).
+Compiled source fefd5b1ce88d36fbb95a014cfcdfc332c20b98c7 (native fix c8346f6). Documentation commits afterward do not change native code.
+Local IPA build/downloads/run-18/JRScan.ipa; build-info.txt beside it; logs in build/downloads/run-18/logs.
+SHA-256 a867f415aa37676ee13c215b8f0e773af85bfa153c92d8ad3c8f6b730213303b independently matches CI.
+Standard macos-26-intel, X64, image macos26 20260824.0517.1; Xcode26.6(17F113), iOS SDK26.5, XcodeGen2.44.1; minimum iOS18. Native device compilation/package and all synthetic tests passed. Downloaded ZIP CRC, plist version0.4.1/build18, fi.jzondu.jrscan ID, iphoneos platform, arm64 Mach-O CPU, family[1], LiDAR camera-purpose string and original sample-license bytes independently checked.
+
+geometry-tests.txt reports PASS for diagnostic field filtering; transforms/reflection/normals/topology/1000xunits; invalid OBJ rejection; USDZ import/export; crop/cleanup; new nonfinite-position regression/finite normals/last-valid patch retention/sanitized checkpoint+OBJ roundtrip; LiDAR buffers/indices/transforms/multi-anchor export/archive mutation/removal/recovery.
+
+No claim of a successful device fix. Build13 (0.4.0) was the previous compiled version; user's LiDAR test failed after4seconds with nonfinite vertex or normal, then user closed it. Savedimages0 is expected for LiDAR. Log cannot distinguish invalid positions from normals or prove the sensor's cause.
+
+## Nonfinite LiDAR fix in build18
+
+Old vectors() rejected any NaN/Infinity and ingest() paused the entire session for one bad update. New live path does not read ARKit normal buffers. sanitize() drops faces touching nonfinite positions and degenerates, compacts referenced vertices, derives finite normals and validates transforms. A wholly unusable update retains the previous valid patch. Per-anchor failures warn and continue other anchors. Warning counts appear in UI, sampled logs and save/close totals; fatal ARSession/storage errors still pause. Never zero-fill unknown positions or overwrite original scans.
 
 ## Next human test (batch)
 
-Install build13 IN PLACE (same identity/account; do not uninstall). New live LiDAR scan: move slowly around nearby static surfaces for15–30seconds while mesh/counts appear, Finish & save, check original LiDAR preview, crop some surroundings, export OBJ to Windows. Force-close/reopen; ensure saved model persists. A second short capture with Close can test Recover saved LiDAR mesh. If any step fails, exact error/step plus diagnostic text; do not ask for a full photo recapture. Keep known-working previous IPA and external backups; refresh AltStore/JRScan before free signing expires.
+Install build18 IN PLACE using the same AltStore account; do not uninstall. Keep existing scans. Start a NEW live LiDAR capture around a nearby static surface for15–30seconds, then Finish & save mesh and check a nonempty preview. If it works, crop surroundings/export OBJ/open on Windows and check saved geometry after relaunch. A short second capture with Close tests Recover saved LiDAR mesh. If any step fails, share that scan's diagnostic text and exact failing step; no full photo recapture needed. The old failed scan can Recover saved LiDAR mesh only if valid checkpoints exist; never-collected geometry cannot be recovered.
+
+## Runner failure resolved by alternative pool
+
+Runs14–16 queued/cancelled around Actions outage. Run17 failed with zero steps on macos-26: internal server error correlation2b4ec308-76b0-4d21-b98e-836bb0507f4b, hosted runner not acquired after multiple attempts. GitHub status API reported Actions partial_outage/incident h02n9572mx9y https://stspg.io/7pwv28hvkmz8, with mitigations applied. This was runner allocation failure, not app compilation failure. Run18 selected existing alternative macos-26-intel, acquired runner and completed successfully. No permission/account/signing/workflow-code changes required. No remaining queued run to monitor. README now links verified build18; earlier pending17/18 notices are obsolete.
 
 ## Tools/build
 
-Portable gh .tools/gh/bin/gh.exe. Git Credential Manager cached credential authorizes pushes/API/dispatch; retrieve only to process-local GH_TOKEN without printing/logging/persisting secrets or raw credential-fill. Workflow manual build-ios.yml, timeout25min, artifacts7days, standard runners only. CI runs generated fixtures only, never personal scan reconstruction. No local Xcode. Apple sample license remains bundled and in source. README has live scan/edit/install/build instructions and test evidence. Documentation-only changes do not trigger builds.
-
-## Nonfinite LiDAR failure follow-up (latest)
-
-User supplied build13 log: LiDAR support true, about32GB free; scan F07EB6B7-5923-4677-B5FE-82B541B4CD07 started then aborted after4seconds with “LiDAR returned a nonfinite vertex or normal.” User closed it; stagecancelled is not the original cause. Savedimages0 is expected for LiDAR. Old strict vectors() rejected any NaN/Infinity anywhere and ingest() paused the entire session for one bad update. Log cannot distinguish positions vs normals or establish why values were nonfinite.
-
-Committed c8346f6 (version0.4.1): live path no longer reads ARKit normal buffers; sanitize() drops faces touching nonfinite positions/degenerates, compacts referenced vertices, derives finite normals, validates transforms, and returns no replacement if a whole update is unusable. Per-anchor errors now warn/retain previous valid patch and continue other anchors. Warnings sampled in logs plus save/close totals and live UI counts; fatal ARSession/disk errors still pause. Regression fixture covers NaN/Infinity mixed with valid faces, generated normals, retaining previous patch, sanitized checkpoint/OBJ round trip.
-
-Earlier attempts: run14 ARM and15 Intel macOS26 were superseded while queued. Run16 on standard macos-15-intel was subsequently cancelled before any steps ran:
-https://github.com/Jzondu/jr-scan-ios/actions/runs/41869324968
-Source c8346f6. This run produced no compiler result or IPA; use current run17 below. No new IPA offered yet. Do not claim compilation or device fix success until evidence. README recovery section added; top build13 links remain previous verified build until replacement succeeds.
-
-After replacement compiles: install IN PLACE, keep old scan, try short NEW live LiDAR capture and Finish/save. The old scan can Recover saved mesh if it contains valid checkpoints; never-collected geometry cannot be recovered. If new capture fails, its filtering warnings/counts plus diagnostic text should isolate what remains. Do not ask for another full photo capture.
-
-Earlier outage: build16 waited during an external GitHub Actions outage, not missing permissions. GitHub status summary API reported Actions partial_outage and active “Incident with Actions and Pages” (https://stspg.io/pjgptg3cfc6n). Run16 still queued with no assigned runner/steps when checked. Leave this attempt in place; do not churn more runners. Compilation/tests/IPA remain unverified. Resume by inspecting run41869324968 after service recovery; fix any compiler/test error and deliver its artifact only after evidence. Source and docs committed; no human credentials/action needed to start the already queued run.
-
-## Current CI retry — November 4
-
-User reported "build failed to run". Inspected run16: cancelled, steps empty; no compile/test failure to diagnose. GitHub status API now reports Actions operational with no active incidents. Repository Actions permissions enabled, allowed_actions all, current check run has no annotations/errors. Dispatched replacement run17 on standard macos-26:
-https://github.com/Jzondu/jr-scan-ios/actions/runs/41873829763
-Job126727786438, source48d73537e6cdc29792fb2d994f5faa3cf3331489, native fix stillc8346f6, version0.4.1. It remained queued with runner_name null and steps[] after about10minutes. Keep this attempt; no permission, credential or human dispatch action is required. Prior paragraph's request to resume run16 is superseded by this section.
-
-Next: inspect run17. When assigned, inspect tests/compiler output, fix actual failures if any, download IPA/log artifacts and independently verify checksum, ZIP, plist, arm64 and license. Then replace README's pending notice and latest verified build13 links, update handoff and batch the short in-place-install/new-LiDAR-capture phone test. No successful compilation/regression/device-fix claim yet. Documentation-only commits after48d7353 do not change the native source being built.
-## Runner allocation failure and retry18 (supersedes prior queued17 state)
-
-User supplied GitHub error: Internal server error, correlation2b4ec308-76b0-4d21-b98e-836bb0507f4b; job not acquired by hosted runner after multiple attempts. API confirms run17 failure, job cancelled with steps[] at2026-11-04T17:19:02Z. This is runner allocation failure, not an application compile error. Actions status now partial_outage, incident h02n9572mx9y https://stspg.io/7pwv28hvkmz8. Latest status says event-trigger issue, mitigations applied, monitoring recovery and possible delayed job status updates. Do not assert the incident conclusively explains every allocation error.
-
-Dispatched run18 on alternative standard macos-26-intel, main sourcefefd5b1 (native source stillc8346f6), version0.4.1:
-https://github.com/Jzondu/jr-scan-ios/actions/runs/41882505350
-Queued at dispatch. No paid runner, credentials, or permission changes. Monitor this attempt after service recovery; do not repeatedly churn runners during the outage. All compile/regression/package verification remains pending. Run17 has no IPA. Use run18 rather than run17 for the next result/artifact inspection; then perform the verification and documentation steps above.
+Portable gh .tools/gh/bin/gh.exe. Git Credential Manager cached credential authorizes pushes/API/dispatch; retrieve only to process-local GH_TOKEN without printing/logging/persisting secrets or raw credential-fill. Workflow manual build-ios.yml, timeout25min, artifacts7days, standard runners only. Default macos-26; choices include macos-26-intel (successful build18), macos-15 and macos-15-intel. CI runs generated fixtures only, never personal scan reconstruction. No local Xcode. Apple sample license remains bundled and in source. README includes current installation/build/scan/edit instructions and verification evidence. Documentation-only changes do not trigger builds. Keep same app identity fi.jzondu.jrscan; AltStore phone ID reported fi.jzondu.jrscan.6BZFTA29CU.
